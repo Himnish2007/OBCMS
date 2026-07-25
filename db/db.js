@@ -1,9 +1,16 @@
 const { Low } = require("lowdb");
 const { JSONFile } = require("lowdb/node");
 const path = require("path");
+const fs = require("fs");
 const bcrypt = require("bcryptjs");
 
-const DATA_DIR = path.join(__dirname, "..", "data");
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
+
+// Ensure the data directory exists. Git does not track empty folders, so on a
+// fresh clone/deploy (e.g. Railway) this directory may not exist at all —
+// without this, lowdb's write-temp-file-then-rename fails with ENOENT.
+fs.mkdirSync(DATA_DIR, { recursive: true });
+
 const file = path.join(DATA_DIR, "db.json");
 const adapter = new JSONFile(file);
 
