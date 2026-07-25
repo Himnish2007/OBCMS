@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Himnish | OBCMS &amp; PICCU Monitoring Dashboard</title>
+<link rel="icon" href="img/logo.png" />
+<link rel="stylesheet" href="css/style.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="login-screen" class="login-screen">
+  <div class="login-card">
+    <img src="img/logo.png" alt="Himnish" class="login-logo" />
+    <h1>OBCMS &amp; PICCU Monitoring</h1>
+    <p class="muted">Himnish Limited — Indian Railways Condition Monitoring Platform</p>
+    <form id="login-form">
+      <label>Username</label>
+      <input type="text" id="login-username" value="admin" required />
+      <label>Password</label>
+      <input type="password" id="login-password" value="Himnish@123" required />
+      <button type="submit">Sign In</button>
+      <p id="login-error" class="error-text"></p>
+    </form>
+    <p class="demo-hint">Demo credentials pre-filled — DEMO_MODE generates live simulated sensor &amp; PICCU data.</p>
+  </div>
+</div>
+
+<!-- ============ APP SHELL ============ -->
+<div id="app" class="app hidden">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="img/logo.png" alt="Himnish" />
+      <div>
+        <div class="brand-name">HIMNISH</div>
+        <div class="brand-sub">Railway IoT Platform</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" data-view="overview">Fleet Overview</button>
+      <button class="nav-item" data-view="obcms">OBCMS</button>
+      <button class="nav-item" data-view="piccu">PICCU</button>
+      <button class="nav-item" data-view="alerts">Alerts</button>
+    </nav>
+    <div class="sidebar-footer">
+      <div id="user-name" class="user-name"></div>
+      <button id="logout-btn" class="logout-btn">Logout</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <div class="topbar-title" id="view-title">Fleet Overview</div>
+        <div class="topbar-sub">Live condition monitoring across the coach fleet</div>
+      </div>
+      <div class="topbar-status">
+        <span class="dot pulse"></span> Live · DEMO_MODE
+      </div>
+    </header>
+
+    <!-- FLEET OVERVIEW -->
+    <section id="view-overview" class="view">
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Total Coaches</div><div class="kpi-value" id="kpi-coaches">-</div></div>
+        <div class="kpi-card"><div class="kpi-label">Total Sensors</div><div class="kpi-value" id="kpi-sensors">-</div></div>
+        <div class="kpi-card alert"><div class="kpi-label">Open Alerts</div><div class="kpi-value" id="kpi-alerts">-</div></div>
+        <div class="kpi-card warn"><div class="kpi-label">PICCU Faults</div><div class="kpi-value" id="kpi-piccu">-</div></div>
+      </div>
+
+      <div class="band-strip">
+        <div class="band-chip green">GREEN <span id="band-green">0</span></div>
+        <div class="band-chip yellow">YELLOW <span id="band-yellow">0</span></div>
+        <div class="band-chip orange">ORANGE <span id="band-orange">0</span></div>
+        <div class="band-chip red">RED <span id="band-red">0</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Fleet — Coach Wise Status</div>
+        <table class="table" id="fleet-table">
+          <thead>
+            <tr><th>Coach No.</th><th>Type</th><th>Rake</th><th>Depot / Zone</th><th>Health Band</th><th>Open Alerts</th><th>PICCU Faults</th><th></th></tr>
+          </thead>
+          <tbody id="fleet-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- OBCMS VIEW -->
+    <section id="view-obcms" class="view hidden">
+      <div class="coach-selector">
+        <label>Select Coach:</label>
+        <select id="obcms-coach-select"></select>
+      </div>
+      <div class="sensor-grid" id="obcms-sensor-grid"></div>
+      <div class="card">
+        <div class="card-title">Vibration Trend — Selected Sensor</div>
+        <canvas id="obcms-chart" height="90"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title">Recent Alerts — This Coach</div>
+        <table class="table" id="obcms-alerts-table">
+          <thead><tr><th>Time</th><th>Sensor</th><th>Severity</th><th>Message</th><th>Status</th></tr></thead>
+          <tbody id="obcms-alerts-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- PICCU VIEW -->
+    <section id="view-piccu" class="view hidden">
+      <div class="coach-selector">
+        <label>Select Coach:</label>
+        <select id="piccu-coach-select"></select>
+      </div>
+      <div class="card">
+        <div class="card-title">Integrated Sub-System Status</div>
+        <div class="piccu-grid" id="piccu-systems-grid"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">SBC Telemetry (HVAC / Battery / Network)</div>
+        <div class="telemetry-grid" id="piccu-telemetry-grid"></div>
+      </div>
+    </section>
+
+    <!-- ALERTS VIEW -->
+    <section id="view-alerts" class="view hidden">
+      <div class="card">
+        <div class="card-title-row">
+          <div class="card-title">All Alerts</div>
+          <div class="filter-tabs">
+            <button class="filter-tab active" data-filter="open">Open</button>
+            <button class="filter-tab" data-filter="acknowledged">Acknowledged</button>
+            <button class="filter-tab" data-filter="all">All</button>
+          </div>
+        </div>
+        <table class="table" id="alerts-table">
+          <thead><tr><th>Time</th><th>Coach</th><th>Location</th><th>Severity</th><th>Message</th><th>Status</th><th></th></tr></thead>
+          <tbody id="alerts-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
