@@ -1,4 +1,5 @@
 const { db, save, nextId } = require("../db/db");
+const { notifyAlert } = require("./notify");
 
 const MAX_READINGS_PER_AXLE = 40;
 const MAX_TELEMETRY_PER_PARAM = 30;
@@ -78,7 +79,7 @@ async function tick() {
         );
         if (!openAlert) {
           const causedBy = vibBand === band ? "vibration" : "temperature";
-          db.data.alerts.push({
+          const newAlert = {
             id: nextId(db.data.alerts),
             coach_id: coach.id,
             axle_id: axle.id,
@@ -89,7 +90,11 @@ async function tick() {
             message: `Axle-${axle.axle_number} anomaly on ${coach.coach_number} — vibration ${reading.vibration_g}g, temp ${reading.temperature_c}°C (driven by ${causedBy}).`,
             created_at: now,
             acknowledged: false,
-          });
+          };
+          db.data.alerts.push(newAlert);
+          // Fire-and-forget: route the alert to whichever user(s) have this coach assigned.
+          // Real delivery depends on SMTP/SMS being configured in Admin > Notifications.
+          notifyAlert(newAlert, coach).catch((err) => console.error("notifyAlert error:", err.message));
         }
       }
     });

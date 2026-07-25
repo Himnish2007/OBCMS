@@ -5,6 +5,7 @@ const path = require("path");
 
 const { init } = require("./db/db");
 const simulator = require("./services/simulator");
+const scheduler = require("./services/scheduler");
 const { requireAuth } = require("./services/auth");
 
 const authRoutes = require("./routes/auth");
@@ -51,6 +52,8 @@ init().then(() => {
   } else {
     console.log("DEMO_MODE disabled — connect a real Modbus/MQTT ingestion service in services/ingestion.js");
   }
+  scheduler.start();
+  console.log("Daily report scheduler active — checks every minute against Admin > Notifications > Daily Report Time.");
   app.listen(PORT, () => {
     console.log(`Himnish OBCMS & PICCU Dashboard running on http://localhost:${PORT}`);
   });

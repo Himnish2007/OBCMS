@@ -362,9 +362,12 @@ async function loadPrediction() {
 }
 
 // ================= ANALYTICS =================
+let analyticsCoachesCache = [];
+
 async function loadAnalytics() {
   try {
     const data = await apiFetch("/analytics/overview");
+    analyticsCoachesCache = data.coaches || [];
 
     const bandCtx = document.getElementById("chart-band-dist").getContext("2d");
     if (analyticsCharts.band) analyticsCharts.band.destroy();
@@ -373,20 +376,6 @@ async function loadAnalytics() {
       data: {
         labels: Object.keys(data.band_counts),
         datasets: [{ data: Object.values(data.band_counts), backgroundColor: Object.keys(data.band_counts).map(bandColor) }],
-      },
-      options: { responsive: true },
-    });
-
-    const rakeCtx = document.getElementById("chart-rake-comparison").getContext("2d");
-    if (analyticsCharts.rake) analyticsCharts.rake.destroy();
-    analyticsCharts.rake = new Chart(rakeCtx, {
-      type: "bar",
-      data: {
-        labels: data.rake_type_comparison.map((r) => r.rake_type),
-        datasets: [
-          { label: "Avg Vibration (g)", data: data.rake_type_comparison.map((r) => r.avg_vibration_g), backgroundColor: "#eb5b12" },
-          { label: "Avg Temperature (°C)", data: data.rake_type_comparison.map((r) => r.avg_temperature_c), backgroundColor: "#0b3d78" },
-        ],
       },
       options: { responsive: true },
     });
@@ -411,6 +400,68 @@ async function loadAnalytics() {
         datasets: [{ label: "Alerts per minute", data: data.alert_trend.map((t) => t.count), borderColor: "#2e7d32", backgroundColor: "rgba(46,125,50,0.1)", fill: true, tension: 0.3 }],
       },
       options: { responsive: true },
+    });
+
+    // Populate coach dropdown + datalist for search
+    const select = document.getElementById("analytics-coach-select");
+    select.innerHTML = analyticsCoachesCache.map((c) => `<option value="${c.id}">${c.coach_number} — ${c.coach_type}</option>`).join("");
+    const datalist = document.getElementById("analytics-coach-datalist");
+    datalist.innerHTML = analyticsCoachesCache.map((c) => `<option value="${c.coach_number}">`).join("");
+
+    if (analyticsCoachesCache.length) {
+      const firstId = select.value || analyticsCoachesCache[0].id;
+      loadCoachAnalyticsDetail(firstId);
+    } else {
+      document.getElementById("analytics-coach-detail").innerHTML = `<p class="muted">No coaches assigned to this account yet.</p>`;
+    }
+  } catch (err) { console.error(err); }
+}
+
+document.getElementById("analytics-coach-select").addEventListener("change", (e) => {
+  loadCoachAnalyticsDetail(e.target.value);
+});
+document.getElementById("analytics-coach-search").addEventListener("change", (e) => {
+  const match = analyticsCoachesCache.find((c) => c.coach_number === e.target.value);
+  if (match) {
+    document.getElementById("analytics-coach-select").value = match.id;
+    loadCoachAnalyticsDetail(match.id);
+  }
+});
+
+async function loadCoachAnalyticsDetail(coachId) {
+  try {
+    const d = await apiFetch(`/analytics/coach/${coachId}`);
+    const container = document.getElementById("analytics-coach-detail");
+
+    container.innerHTML = `
+      <div class="kpi-grid" style="margin:1rem 0;">
+        <div class="kpi-card"><div class="kpi-label">Avg Vibration</div><div class="kpi-value">${d.avg_vibration_g}g</div></div>
+        <div class="kpi-card"><div class="kpi-label">Avg Temperature</div><div class="kpi-value">${d.avg_temperature_c}°C</div></div>
+        <div class="kpi-card alert"><div class="kpi-label">Open Alerts</div><div class="kpi-value">${d.open_alerts}</div></div>
+        <div class="kpi-card"><div class="kpi-label">Total Alerts</div><div class="kpi-value">${d.total_alerts}</div></div>
+      </div>
+      <canvas id="coach-analytics-chart" height="90"></canvas>
+    `;
+
+    const ctx = document.getElementById("coach-analytics-chart").getContext("2d");
+    if (analyticsCharts.coachDetail) analyticsCharts.coachDetail.destroy();
+    const labels = d.axles.map((a) => `Axle-${a.axle_number}`);
+    analyticsCharts.coachDetail = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          { label: "Vibration (g)", data: d.axles.map((a) => (a.latest ? a.latest.vibration_g : 0)), backgroundColor: "#eb5b12", yAxisID: "y" },
+          { label: "Temperature (°C)", data: d.axles.map((a) => (a.latest ? a.latest.temperature_c : 0)), backgroundColor: "#0b3d78", yAxisID: "y1" },
+        ],
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: { beginAtZero: true, position: "left", title: { display: true, text: "g" } },
+          y1: { beginAtZero: true, position: "right", title: { display: true, text: "°C" }, grid: { drawOnChartArea: false } },
+        },
+      },
     });
   } catch (err) { console.error(err); }
 }
@@ -477,7 +528,33 @@ document.getElementById("download-alerts-csv").addEventListener("click", () => {
   const coachId = document.getElementById("reports-coach-select").value;
   downloadCsv(`/reports/alerts.csv${coachId ? "?coach_id=" + coachId : ""}`, "obcms_alerts.csv");
 });
+document.getElementById("download-report-pdf").addEventListener("click", () => {
+  const coachId = document.getElementById("reports-coach-select").value;
+  downloadCsv(`/reports/report.pdf${coachId ? "?coach_id=" + coachId : ""}`, "obcms_report.pdf");
+});
 document.getElementById("print-summary").addEventListener("click", () => window.print());
+
+document.getElementById("send-test-report-btn").addEventListener("click", async () => {
+  const resultEl = document.getElementById("send-test-report-result");
+  resultEl.textContent = "Sending...";
+  resultEl.style.color = "";
+  try {
+    const res = await apiFetch("/reports/send-test-report", { method: "POST" });
+    if (res.log.status === "sent") {
+      resultEl.style.color = "var(--green)";
+      resultEl.textContent = `Sent to your email successfully.`;
+    } else if (res.log.status === "simulated") {
+      resultEl.style.color = "var(--orange)";
+      resultEl.textContent = `Not actually sent — ${res.log.detail} (configure SMTP in Admin > Notifications)`;
+    } else {
+      resultEl.style.color = "var(--red)";
+      resultEl.textContent = `Failed: ${res.log.detail}`;
+    }
+  } catch (err) {
+    resultEl.style.color = "var(--red)";
+    resultEl.textContent = err.message;
+  }
+});
 
 // ================= RAKE MANAGEMENT =================
 async function loadRakes() {
@@ -491,7 +568,11 @@ async function loadRakes() {
             <span class="rake-title">${r.rake_name}</span>
             <span class="rake-type-tag ${r.rake_type.replace(/\s/g, "")}">${r.rake_type}</span>
           </div>
-          <div class="rake-meta">${r.depot} · ${r.zone} · ${r.coach_count} coach(es)</div>
+          <div style="display:flex;align-items:center;gap:0.6rem;">
+            <div class="rake-meta">${r.depot} · ${r.zone} · ${r.coach_count} coach(es)</div>
+            <button class="btn-small admin-supervisor-only" onclick="editRake(${r.id})">Edit</button>
+            <button class="btn-danger admin-only" onclick="deleteRake(${r.id})">Delete</button>
+          </div>
         </div>
         <div class="rake-coach-list">
           ${r.coaches.map((c) => `
@@ -503,7 +584,7 @@ async function loadRakes() {
           `).join("") || '<span class="muted">No coaches assigned</span>'}
         </div>
       </div>
-    `).join("");
+    `).join("") || `<div class="card"><p class="muted">No rakes to show.</p></div>`;
 
     const log = await apiFetch("/rakes/swap-log");
     document.getElementById("swap-log-body").innerHTML = log.map((l) => `
@@ -518,6 +599,57 @@ async function loadRakes() {
     `).join("") || `<tr><td colspan="6" style="color:#5b6b7f;">No swaps recorded yet.</td></tr>`;
   } catch (err) { console.error(err); }
 }
+
+async function editRake(id) {
+  const rake = RAKES.find((r) => r.id === id);
+  if (!rake) return;
+  openModal(`
+    <h3>Edit Rake — ${rake.rake_name}</h3>
+    <form id="rake-edit-form">
+      <label>Rake Name</label><input type="text" id="re-name" value="${rake.rake_name}" required />
+      <label>Rake Type</label>
+      <select id="re-type">
+        <option value="LHB" ${rake.rake_type === "LHB" ? "selected" : ""}>LHB</option>
+        <option value="Vande Bharat" ${rake.rake_type === "Vande Bharat" ? "selected" : ""}>Vande Bharat</option>
+      </select>
+      <label>Zone</label><input type="text" id="re-zone" value="${rake.zone}" />
+      <label>Depot</label><input type="text" id="re-depot" value="${rake.depot}" />
+      <p class="modal-error" id="rake-edit-error"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save Changes</button>
+      </div>
+    </form>
+  `);
+  document.getElementById("rake-edit-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch(`/rakes/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          rake_name: document.getElementById("re-name").value.trim(),
+          rake_type: document.getElementById("re-type").value,
+          zone: document.getElementById("re-zone").value.trim(),
+          depot: document.getElementById("re-depot").value.trim(),
+        }),
+      });
+      closeModal();
+      showToast("Rake updated", "success");
+      loadRakes();
+    } catch (err) { document.getElementById("rake-edit-error").textContent = err.message; }
+  });
+}
+window.editRake = editRake;
+
+async function deleteRake(id) {
+  if (!confirm("Delete this rake? It must have no coaches assigned.")) return;
+  try {
+    await apiFetch(`/rakes/${id}`, { method: "DELETE" });
+    showToast("Rake deleted", "success");
+    loadRakes();
+  } catch (err) { showToast(err.message, "error"); }
+}
+window.deleteRake = deleteRake;
 
 document.getElementById("add-rake-btn").addEventListener("click", () => {
   openModal(`
@@ -599,7 +731,18 @@ async function loadAdmin() {
   await loadAdminUsers();
   await loadAdminCoaches();
   await loadAdminThresholds();
-  await loadAdminLogSettings();
+  await loadAdminNotifications();
+}
+
+function coachCheckboxListHtml(selectedIds) {
+  const selected = new Set((selectedIds || []).map(Number));
+  return `<div class="coach-checkbox-list">${COACHES.map((c) => `
+    <label><input type="checkbox" class="coach-assign-cb" value="${c.id}" ${selected.has(c.id) ? "checked" : ""} /> ${c.coach_number} — ${c.coach_type} (${c.rake_name})</label>
+  `).join("") || '<span class="muted">No coaches exist yet — create one first.</span>'}</div>`;
+}
+
+function collectCheckedCoachIds() {
+  return [...document.querySelectorAll(".coach-assign-cb:checked")].map((el) => Number(el.value));
 }
 
 async function loadAdminUsers() {
@@ -609,6 +752,9 @@ async function loadAdminUsers() {
       <td>${u.username}</td>
       <td>${u.name}</td>
       <td>${u.role}</td>
+      <td>${u.email || '<span class="muted">-</span>'}</td>
+      <td>${u.phone || '<span class="muted">-</span>'}</td>
+      <td>${u.role === "Admin" ? '<span class="muted">All coaches</span>' : (u.assigned_coaches.length ? u.assigned_coaches.length + " coach(es)" : '<span class="muted">None</span>')}</td>
       <td>
         <button class="btn-small" onclick="editUser(${u.id})">Edit</button>
         <button class="btn-danger" onclick="deleteUser(${u.id})">Delete</button>
@@ -624,8 +770,12 @@ document.getElementById("add-user-btn").addEventListener("click", () => {
       <label>Username</label><input type="text" id="u-username" required />
       <label>Full Name</label><input type="text" id="u-name" required />
       <label>Password</label><input type="password" id="u-password" required minlength="6" />
+      <label>Email (for alerts &amp; reports)</label><input type="email" id="u-email" placeholder="user@example.com" />
+      <label>Phone (for SMS alerts)</label><input type="text" id="u-phone" placeholder="+91XXXXXXXXXX" />
       <label>Role</label>
       <select id="u-role"><option value="Viewer">Viewer</option><option value="Supervisor">Supervisor</option><option value="Admin">Admin</option></select>
+      <label>Assigned Coaches — this user will ONLY see these coaches</label>
+      ${coachCheckboxListHtml([])}
       <p class="modal-error" id="user-form-error"></p>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
@@ -642,7 +792,10 @@ document.getElementById("add-user-btn").addEventListener("click", () => {
           username: document.getElementById("u-username").value.trim(),
           name: document.getElementById("u-name").value.trim(),
           password: document.getElementById("u-password").value,
+          email: document.getElementById("u-email").value.trim(),
+          phone: document.getElementById("u-phone").value.trim(),
           role: document.getElementById("u-role").value,
+          assigned_coaches: collectCheckedCoachIds(),
         }),
       });
       closeModal();
@@ -660,6 +813,8 @@ async function editUser(id) {
     <h3>Edit User — ${u.username}</h3>
     <form id="user-edit-form">
       <label>Full Name</label><input type="text" id="ue-name" value="${u.name}" required />
+      <label>Email (for alerts &amp; reports)</label><input type="email" id="ue-email" value="${u.email || ""}" placeholder="user@example.com" />
+      <label>Phone (for SMS alerts)</label><input type="text" id="ue-phone" value="${u.phone || ""}" placeholder="+91XXXXXXXXXX" />
       <label>Role</label>
       <select id="ue-role">
         <option value="Viewer" ${u.role === "Viewer" ? "selected" : ""}>Viewer</option>
@@ -667,6 +822,8 @@ async function editUser(id) {
         <option value="Admin" ${u.role === "Admin" ? "selected" : ""}>Admin</option>
       </select>
       <label>New Password (leave blank to keep unchanged)</label><input type="password" id="ue-password" minlength="6" />
+      <label>Assigned Coaches — this user will ONLY see these coaches</label>
+      ${coachCheckboxListHtml(u.assigned_coaches)}
       <p class="modal-error" id="user-edit-error"></p>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
@@ -677,7 +834,13 @@ async function editUser(id) {
   document.getElementById("user-edit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
-      const payload = { name: document.getElementById("ue-name").value.trim(), role: document.getElementById("ue-role").value };
+      const payload = {
+        name: document.getElementById("ue-name").value.trim(),
+        role: document.getElementById("ue-role").value,
+        email: document.getElementById("ue-email").value.trim(),
+        phone: document.getElementById("ue-phone").value.trim(),
+        assigned_coaches: collectCheckedCoachIds(),
+      };
       const pw = document.getElementById("ue-password").value;
       if (pw) payload.password = pw;
       await apiFetch(`/admin/users/${id}`, { method: "PUT", body: JSON.stringify(payload) });
@@ -801,6 +964,7 @@ async function deleteCoach(id) {
 }
 window.deleteCoach = deleteCoach;
 
+// ---- Alert Thresholds + Log Interval (combined) ----
 async function loadAdminThresholds() {
   const t = await apiFetch("/admin/thresholds");
   document.getElementById("th-vib-yellow").value = t.vibration.yellow;
@@ -809,6 +973,7 @@ async function loadAdminThresholds() {
   document.getElementById("th-temp-yellow").value = t.temperature.yellow;
   document.getElementById("th-temp-orange").value = t.temperature.orange;
   document.getElementById("th-temp-red").value = t.temperature.red;
+  document.getElementById("log-interval-input").value = t.log_interval_seconds;
 }
 
 document.getElementById("thresholds-form").addEventListener("submit", async (e) => {
@@ -827,26 +992,100 @@ document.getElementById("thresholds-form").addEventListener("submit", async (e) 
           orange: Number(document.getElementById("th-temp-orange").value),
           red: Number(document.getElementById("th-temp-red").value),
         },
+        log_interval_seconds: Number(document.getElementById("log-interval-input").value),
       }),
     });
-    showToast("Alert thresholds updated", "success");
+    showToast("Thresholds & logging interval updated", "success");
   } catch (err) { showToast(err.message, "error"); }
 });
 
-async function loadAdminLogSettings() {
-  const s = await apiFetch("/admin/settings");
-  document.getElementById("log-interval-input").value = s.log_interval_seconds;
+// ---- Notifications: Daily Report Time + SMTP + SMS ----
+async function loadAdminNotifications() {
+  const n = await apiFetch("/admin/notifications");
+  document.getElementById("daily-report-time-input").value = n.daily_report_time;
+
+  document.getElementById("smtp-enabled").checked = n.smtp.enabled;
+  document.getElementById("smtp-host").value = n.smtp.host;
+  document.getElementById("smtp-port").value = n.smtp.port;
+  document.getElementById("smtp-secure").checked = n.smtp.secure;
+  document.getElementById("smtp-user").value = n.smtp.user;
+  document.getElementById("smtp-pass").value = "";
+  document.getElementById("smtp-pass").placeholder = n.smtp.pass ? "•••••••• (unchanged)" : "Leave blank to keep unchanged";
+  document.getElementById("smtp-from-name").value = n.smtp.from_name;
+  document.getElementById("smtp-from-email").value = n.smtp.from_email;
+
+  document.getElementById("sms-enabled").checked = n.sms.enabled;
+  document.getElementById("sms-provider").value = n.sms.provider;
+  document.getElementById("sms-api-key").value = "";
+  document.getElementById("sms-api-key").placeholder = n.sms.api_key ? "•••••••• (unchanged)" : "Leave blank to keep unchanged";
+  document.getElementById("sms-sender-id").value = n.sms.sender_id;
 }
 
-document.getElementById("logsettings-form").addEventListener("submit", async (e) => {
+document.getElementById("daily-report-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
-    await apiFetch("/admin/settings", {
+    await apiFetch("/admin/notifications", {
       method: "PUT",
-      body: JSON.stringify({ log_interval_seconds: Number(document.getElementById("log-interval-input").value) }),
+      body: JSON.stringify({ daily_report_time: document.getElementById("daily-report-time-input").value }),
     });
-    showToast("Log interval updated", "success");
+    showToast("Daily report time updated", "success");
   } catch (err) { showToast(err.message, "error"); }
+});
+
+document.getElementById("smtp-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await apiFetch("/admin/notifications", {
+      method: "PUT",
+      body: JSON.stringify({
+        smtp: {
+          enabled: document.getElementById("smtp-enabled").checked,
+          host: document.getElementById("smtp-host").value.trim(),
+          port: Number(document.getElementById("smtp-port").value) || 587,
+          secure: document.getElementById("smtp-secure").checked,
+          user: document.getElementById("smtp-user").value.trim(),
+          pass: document.getElementById("smtp-pass").value,
+          from_name: document.getElementById("smtp-from-name").value.trim(),
+          from_email: document.getElementById("smtp-from-email").value.trim(),
+        },
+      }),
+    });
+    showToast("SMTP settings saved", "success");
+    loadAdminNotifications();
+  } catch (err) { showToast(err.message, "error"); }
+});
+
+document.getElementById("sms-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await apiFetch("/admin/notifications", {
+      method: "PUT",
+      body: JSON.stringify({
+        sms: {
+          enabled: document.getElementById("sms-enabled").checked,
+          provider: document.getElementById("sms-provider").value.trim(),
+          api_key: document.getElementById("sms-api-key").value,
+          sender_id: document.getElementById("sms-sender-id").value.trim(),
+        },
+      }),
+    });
+    showToast("SMS settings saved", "success");
+    loadAdminNotifications();
+  } catch (err) { showToast(err.message, "error"); }
+});
+
+document.getElementById("send-test-email-btn").addEventListener("click", async () => {
+  const to = document.getElementById("test-email-to").value.trim();
+  const resultEl = document.getElementById("test-email-result");
+  if (!to) { resultEl.style.color = "var(--red)"; resultEl.textContent = "Enter a recipient email address."; return; }
+  resultEl.textContent = "Sending...";
+  resultEl.style.color = "";
+  try {
+    const log = await apiFetch("/admin/notifications/test-email", { method: "POST", body: JSON.stringify({ to }) });
+    if (log.status === "sent") { resultEl.style.color = "var(--green)"; resultEl.textContent = "Test email sent successfully."; }
+    else if (log.status === "simulated") { resultEl.style.color = "var(--orange)"; resultEl.textContent = "Not sent — " + log.detail; }
+    else { resultEl.style.color = "var(--red)"; resultEl.textContent = "Failed: " + log.detail; }
+  } catch (err) { resultEl.style.color = "var(--red)"; resultEl.textContent = err.message; }
 });
 
 // ---------------- Init ----------------

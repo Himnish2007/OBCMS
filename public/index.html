@@ -176,17 +176,24 @@
           <canvas id="chart-band-dist" height="180"></canvas>
         </div>
         <div class="card">
-          <div class="card-title">LHB vs Vande Bharat — Avg Vibration &amp; Temperature</div>
-          <canvas id="chart-rake-comparison" height="180"></canvas>
-        </div>
-        <div class="card">
           <div class="card-title">Top Alert-Prone Coaches</div>
           <canvas id="chart-top-alerts" height="180"></canvas>
         </div>
-        <div class="card">
+        <div class="card" style="grid-column: 1 / -1;">
           <div class="card-title">Alert Trend (Recent)</div>
-          <canvas id="chart-alert-trend" height="180"></canvas>
+          <canvas id="chart-alert-trend" height="140"></canvas>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Per-Coach Detailed Analysis</div>
+        <div class="coach-selector">
+          <label>Search / Select Coach:</label>
+          <input type="text" id="analytics-coach-search" placeholder="Type coach number..." list="analytics-coach-datalist" />
+          <datalist id="analytics-coach-datalist"></datalist>
+          <select id="analytics-coach-select"></select>
+        </div>
+        <div id="analytics-coach-detail"></div>
       </div>
     </section>
 
@@ -215,11 +222,18 @@
         <div class="card-title">Export Data</div>
         <div class="report-actions">
           <label>Filter by coach (optional):</label>
-          <select id="reports-coach-select"><option value="">All Coaches</option></select>
-          <button class="btn-primary" id="download-readings-csv">Download Readings CSV</button>
-          <button class="btn-primary" id="download-alerts-csv">Download Alerts CSV</button>
-          <button class="btn-secondary" id="print-summary">Print Summary Report</button>
+          <select id="reports-coach-select"><option value="">All My Coaches</option></select>
+          <button class="btn-primary" id="download-readings-csv">Readings CSV</button>
+          <button class="btn-primary" id="download-alerts-csv">Alerts CSV</button>
+          <button class="btn-primary" id="download-report-pdf">Download PDF Report</button>
+          <button class="btn-secondary" id="print-summary">Print Summary</button>
         </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Email Report Delivery</div>
+        <p class="muted">Daily reports are emailed automatically at the time set by Admin (Admin &gt; Alert Thresholds &amp; Logging / Notifications), covering only the coaches assigned to your account. Use the button below to send yourself a report right now to verify delivery.</p>
+        <button class="btn-secondary" id="send-test-report-btn">Send Me a Test Report Now</button>
+        <p id="send-test-report-result" class="modal-error"></p>
       </div>
     </section>
 
@@ -247,8 +261,8 @@
       <div class="sub-tabs">
         <button class="sub-tab active" data-subtab="users">Users</button>
         <button class="sub-tab" data-subtab="coaches">Coaches</button>
-        <button class="sub-tab" data-subtab="thresholds">Alert Thresholds</button>
-        <button class="sub-tab" data-subtab="logsettings">Log Time Setting</button>
+        <button class="sub-tab" data-subtab="thresholds">Alert Thresholds &amp; Logging</button>
+        <button class="sub-tab" data-subtab="notifications">Notifications</button>
       </div>
 
       <div id="admin-users" class="sub-view">
@@ -257,7 +271,7 @@
           <button class="btn-primary" id="add-user-btn">+ Add User</button>
         </div>
         <table class="table" id="users-table">
-          <thead><tr><th>Username</th><th>Name</th><th>Role</th><th></th></tr></thead>
+          <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Assigned Coaches</th><th></th></tr></thead>
           <tbody id="users-table-body"></tbody>
         </table>
       </div>
@@ -290,19 +304,56 @@
               <label>Orange ≥</label><input type="number" id="th-temp-orange" step="1" required />
               <label>Red ≥</label><input type="number" id="th-temp-red" step="1" required />
             </div>
-            <button type="submit" class="btn-primary">Save Thresholds</button>
+            <div class="threshold-group">
+              <h4>Data Logging Interval</h4>
+              <p class="muted" style="margin:0 0 0.4rem;">How often the OBCMS simulator (or real ingestion service) logs a new reading per axle.</p>
+              <label>Log Interval (seconds)</label>
+              <input type="number" id="log-interval-input" min="2" max="3600" step="1" required />
+            </div>
+            <button type="submit" class="btn-primary">Save Thresholds &amp; Logging Interval</button>
           </form>
         </div>
       </div>
 
-      <div id="admin-logsettings" class="sub-view hidden">
+      <div id="admin-notifications" class="sub-view hidden">
         <div class="card">
-          <div class="card-title">Data Log Time Interval</div>
-          <p class="muted">How often the OBCMS simulator (or real ingestion service) logs a new reading per axle.</p>
-          <form id="logsettings-form" class="threshold-form">
-            <label>Log Interval (seconds)</label>
-            <input type="number" id="log-interval-input" min="2" max="3600" step="1" required />
-            <button type="submit" class="btn-primary">Save Setting</button>
+          <div class="card-title">Daily Report Schedule</div>
+          <p class="muted">Every user receives an automatic email report covering only their assigned coaches, once a day at this time (24-hour format, server time).</p>
+          <form id="daily-report-form" class="threshold-form">
+            <label>Daily Report Time</label>
+            <input type="time" id="daily-report-time-input" required style="max-width:180px;" />
+            <button type="submit" class="btn-primary">Save Report Time</button>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-title">Email (SMTP) Configuration</div>
+          <p class="muted">Required for real email delivery of alerts and reports. Without this configured, emails are logged only (not actually sent).</p>
+          <form id="smtp-form" class="threshold-form">
+            <label><input type="checkbox" id="smtp-enabled" style="width:auto;display:inline-block;margin-right:0.4rem;" /> Enable SMTP sending</label>
+            <label>SMTP Host</label><input type="text" id="smtp-host" placeholder="smtp.yourprovider.com" />
+            <label>SMTP Port</label><input type="number" id="smtp-port" placeholder="587" />
+            <label><input type="checkbox" id="smtp-secure" style="width:auto;display:inline-block;margin-right:0.4rem;" /> Use SSL/TLS (secure)</label>
+            <label>SMTP Username</label><input type="text" id="smtp-user" placeholder="you@yourdomain.com" />
+            <label>SMTP Password</label><input type="password" id="smtp-pass" placeholder="Leave blank to keep unchanged" />
+            <label>From Name</label><input type="text" id="smtp-from-name" placeholder="Himnish OBCMS & PICCU" />
+            <label>From Email</label><input type="text" id="smtp-from-email" placeholder="noreply@himnish.example" />
+            <button type="submit" class="btn-primary">Save SMTP Settings</button>
+          </form>
+          <div style="margin-top:1rem;display:flex;gap:0.6rem;align-items:center;">
+            <input type="text" id="test-email-to" placeholder="test-recipient@example.com" style="flex:1;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:8px;" />
+            <button class="btn-secondary" id="send-test-email-btn">Send Test Email</button>
+          </div>
+          <p id="test-email-result" class="modal-error"></p>
+        </div>
+        <div class="card">
+          <div class="card-title">SMS Configuration</div>
+          <p class="muted">SMS delivery requires a paid SMS gateway account (e.g. Twilio, MSG91) — enter the provider details here once you have one. Until then, SMS attempts are logged only, not sent.</p>
+          <form id="sms-form" class="threshold-form">
+            <label><input type="checkbox" id="sms-enabled" style="width:auto;display:inline-block;margin-right:0.4rem;" /> Enable SMS sending</label>
+            <label>Provider</label><input type="text" id="sms-provider" placeholder="e.g. twilio, msg91" />
+            <label>API Key</label><input type="password" id="sms-api-key" placeholder="Leave blank to keep unchanged" />
+            <label>Sender ID</label><input type="text" id="sms-sender-id" placeholder="e.g. HIMRLY" />
+            <button type="submit" class="btn-primary">Save SMS Settings</button>
           </form>
         </div>
       </div>

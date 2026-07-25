@@ -3,46 +3,72 @@
 Full-stack condition-monitoring dashboard for the OBCMS (On-Board Condition Monitoring System) and
 PICCU (Passenger Information Coach Computing Unit), built against MDTS:44415 Rev.02.
 
-- **Backend:** Node.js + Express, REST API, JWT auth, role-based access control (Admin / Supervisor / Viewer)
+- **Backend:** Node.js + Express, REST API, JWT auth, role-based + **per-coach access control**
 - **Storage:** lowdb (JSON file store) — zero native build dependencies
 - **Data source:** `DEMO_MODE` simulator generates realistic per-axle vibration/temperature and PICCU
-  telemetry on a configurable interval (Admin > Log Time Setting). Swap in a real Modbus/MQTT ingestion
-  service in `services/` when hardware is connected — the API and frontend contracts do not change.
-- **Frontend:** Vanilla JS + Chart.js — 10 views, role-aware navigation.
+  telemetry on a configurable interval. Swap in a real Modbus/MQTT ingestion service in `services/`
+  when hardware is connected — the API and frontend contracts do not change.
+- **Frontend:** Vanilla JS + Chart.js — 10 views, role-and-coach-aware navigation.
 
 ## Modules / Pages
 
 | View | What it shows |
 |---|---|
-| Fleet Overview | KPI cards, Green/Yellow/Orange/Red distribution, coach-wise health table |
-| OBCMS | Per-coach **8-axle** grid — each axle reports both vibration (g) and temperature (°C); dual-axis trend chart; condition band is the worse of the two parameters |
+| Fleet Overview | KPI cards, Green/Yellow/Orange/Red distribution, coach-wise health table (scoped to the logged-in user's assigned coaches) |
+| OBCMS | Per-coach **8-axle** grid — vibration (g) + temperature (°C) per axle; dual-axis trend chart; band = worse of the two parameters |
 | PICCU | Integrated sub-systems (PAPIS, WLI, CCTV, WSP, Toilet, FSDS/FDSS, RMPU, EPPFS, ETBU, Battery Charger, Network) + SBC telemetry |
 | Health | Fleet-wide 8-axle heatmap per coach, composite health score, worst-performing axles list |
 | Prediction | Linear-trend extrapolation per axle — estimated time to next threshold breach (indicative, not a certified predictive algorithm) |
-| Analytics | Band distribution, LHB vs Vande Bharat comparison, top alert-prone coaches, alert trend charts |
-| Alerts | Fleet-wide alert feed with acknowledge workflow |
-| Reports | Summary KPIs, CSV export (readings / alerts, optionally filtered by coach), printable summary |
-| **Rake Management** | LHB / Vande Bharat rake list with assigned coaches, **Add Rake**, **Swap Coach** (move any coach between any rake — reflects real operations where coach composition changes), full swap history log |
-| **Admin** *(Admin role only)* | **Users** (create/edit/delete, roles), **Coaches** (create/edit/delete — creates 8 axles + PICCU systems automatically), **Alert Thresholds** (configurable Yellow/Orange/Red for vibration & temperature), **Log Time Setting** (data logging interval) |
+| Analytics | Band distribution, top alert-prone coaches, alert trend — plus **per-coach detailed analysis** (search or dropdown to pick any one coach) |
+| Alerts | Alert feed scoped to the user's coaches, with acknowledge workflow |
+| Reports | Summary KPIs, CSV export, **PDF export**, **"Send Me a Test Report Now"** button |
+| Rake Management | LHB / Vande Bharat rakes, **Add / Edit / Delete Rake**, **Swap Coach** (move any coach to any rake), full swap history log |
+| Admin *(Admin role only)* | **Users** (create/edit/delete, email, phone, role, **coach assignment checkboxes**), **Coaches** (create/edit/delete), **Alert Thresholds & Logging** (Yellow/Orange/Red for vibration & temperature + data log interval, one combined form), **Notifications** (daily report time, SMTP config + test-email, SMS config) |
+
+## Per-user coach access control
+
+Every user (except Admin) only ever sees the coaches assigned to them in Admin > Users — across
+every page: Fleet Overview, OBCMS, PICCU, Health, Prediction, Analytics, Alerts, Reports, Rake
+Management. This is enforced in the API itself (`services/access.js` + `requireCoachAccess`
+middleware), not just hidden in the UI — a Viewer's token cannot fetch another coach's data even by
+calling the API directly (returns 404, not 403, to avoid confirming the coach exists).
 
 ## Roles
 
 | Role | Can do |
 |---|---|
-| Admin | Everything — user management, coach/rake management, thresholds, log settings |
-| Supervisor | Create/edit rakes &amp; coaches, swap coaches, acknowledge alerts — cannot manage users or delete rakes/coaches or change thresholds |
-| Viewer | Read-only across all views |
+| Admin | Everything — sees all coaches, manages users, rakes, coaches, thresholds, notifications |
+| Supervisor | Create/edit rakes & coaches, swap coaches, acknowledge alerts — scoped to assigned coaches; cannot manage users, delete rakes/coaches, or change thresholds/notifications |
+| Viewer | Read-only, scoped to assigned coaches |
 
-Enforced both in the UI (nav items hidden) and in the API (`requireRole` middleware) — a Viewer/Supervisor
-token cannot call protected endpoints even by hitting the API directly.
+## Alerts & Reports delivery
+
+- **Real-time alert routing:** when the simulator (or a real ingestion service) raises an
+  ORANGE/RED alert for a coach, `services/notify.js` automatically emails (and, if configured,
+  SMS's) every non-Admin user who has that coach assigned.
+- **Daily report email:** `services/scheduler.js` checks once a minute; at the Admin-configured
+  `daily_report_time` it emails every user a PDF report covering only their assigned coaches, once
+  per day (tracked via `settings.last_daily_report_date` so it never double-sends).
+- **PDF reports** are built with `pdfkit` in `services/pdfReport.js` — real, working PDF generation,
+  no external dependency beyond the npm package.
+- **Email (SMTP)** uses `nodemailer` in `services/mailer.js` — this **will genuinely send email**
+  once valid SMTP credentials are entered in Admin > Notifications (e.g. a company mail relay, a
+  Gmail account with an App Password, or a transactional provider's SMTP endpoint like SendGrid).
+  Until configured, attempts are logged as "simulated" rather than silently failing.
+- **SMS is a pluggable stub**, honestly labelled as such: `services/sms.js` has the config UI and
+  logging wired end-to-end, but sending a real text message requires a paid SMS gateway account
+  (Twilio, MSG91, AWS SNS, etc.). Add the provider's HTTP call in `sendViaProvider()` once Himnish
+  has an account — nothing else in the app needs to change.
+- All delivery attempts (sent / failed / simulated) are recorded in `db.data.notificationLog` for
+  audit purposes.
 
 ## Default logins (change before real deployment)
 
-| Username | Password | Role |
-|---|---|---|
-| admin | Himnish@123 | Admin |
-| supervisor | Himnish@123 | Supervisor |
-| viewer | Himnish@123 | Viewer |
+| Username | Password | Role | Assigned coaches (demo seed) |
+|---|---|---|---|
+| admin | Himnish@123 | Admin | All (implicit) |
+| supervisor | Himnish@123 | Supervisor | LHB-29045, LHB-29112 |
+| viewer | Himnish@123 | Viewer | LHB-31207, LHB-31288 |
 
 ## Run locally
 
@@ -58,42 +84,33 @@ App runs on `http://localhost:4000`.
 
 ```
 himnish-obcms-piccu-dashboard/
-├── server.js                 # Express app entrypoint
-├── db/db.js                   # lowdb schema: rakes, coaches, axles, thresholds, settings, swap log
+├── server.js                 # Express app entrypoint — starts simulator + daily-report scheduler
+├── db/db.js                   # lowdb schema: rakes, coaches, axles, users (+coach assignment), thresholds, notification settings
 ├── services/
 │   ├── auth.js                  # JWT sign/verify + requireRole()
-│   └── simulator.js             # DEMO_MODE data generator (dynamic thresholds + log interval)
+│   ├── access.js                 # per-user coach access filtering + requireCoachAccess middleware
+│   ├── simulator.js              # DEMO_MODE data generator (dynamic thresholds + log interval)
+│   ├── notify.js                  # routes new alerts to the coach's assigned user(s)
+│   ├── mailer.js                  # nodemailer wrapper (real SMTP sending once configured)
+│   ├── sms.js                     # pluggable SMS stub — needs a real provider wired in
+│   ├── pdfReport.js                # pdfkit-based coach/user report builder
+│   └── scheduler.js                # daily per-user report email, once per day at Admin-set time
 ├── routes/
-│   ├── auth.js                    # POST /api/auth/login
-│   ├── coaches.js                 # coaches, axles, alerts, piccu (per coach)
-│   ├── alerts.js                  # fleet-wide alerts + acknowledge
-│   ├── rakes.js                   # rake CRUD + coach swap + swap log
-│   ├── admin.js                   # users CRUD, coaches CRUD, thresholds, log settings
-│   ├── health.js                  # fleet health matrix, worst axles
-│   ├── predictions.js             # trend-based breach prediction
-│   ├── analytics.js               # fleet-wide aggregated stats
-│   └── reports.js                 # CSV export, summary
+│   ├── auth.js, coaches.js, alerts.js, rakes.js, admin.js, health.js, predictions.js, analytics.js, reports.js
 └── public/                      # frontend (HTML/CSS/JS + Chart.js via CDN)
 ```
 
-## Connecting real hardware later
+## Known simplifications / production-readiness notes
 
-Replace the simulator call in `server.js` with a real ingestion service that reads from your
-Data Concentrator (Modbus TCP/RS485) or MQTT broker and writes into the same `db.data.readings`
-array shape used in `services/simulator.js` (one entry per axle per log interval, with `axle_id`,
-`vibration_g`, `temperature_c`). The REST API and frontend do not need to change.
-
-## Known simplifications (see prior self-assessment)
-
-This is a working prototype layer on top of the OBCMS/PICCU specification, not a certified
-production system. Still outstanding versus MDTS:44415 Rev.02:
-- GPS/GNSS location stamping on readings
-- Speed gating (>15 kmph) before logging a reading
-- Email/SMS alert delivery (currently in-app only)
-- Full SBC telemetry parameter set (RMPU/Battery/Network — currently 6 representative parameters)
-- WLI tank-level percentage (currently generic Online/Offline)
-- MFA/OTP/DSC authentication (currently username + password)
-- lowdb is fine for a prototype; production fleet scale should move to PostgreSQL/TimescaleDB
+- lowdb (JSON file) is fine for a prototype; production fleet scale should move to
+  PostgreSQL/TimescaleDB. There is a narrow race-condition window if the scheduler's per-user email
+  loop (which awaits inside a `for` loop) happens to overlap exactly with an in-flight simulator
+  tick — low probability at demo scale (daily vs. every-few-seconds), but worth knowing about before
+  scaling this up; a real database with transactions removes this class of bug entirely.
+- Still outstanding versus MDTS:44415 Rev.02: GPS/GNSS location stamping, speed gating (>15 kmph)
+  before logging, full SBC telemetry parameter set (currently 6 representative parameters), WLI
+  tank-level percentage, MFA/OTP/DSC authentication.
+- SMS delivery is not real until a provider is wired into `services/sms.js` (see above).
 
 ## Deploying to Railway.app (GitHub-integrated)
 
@@ -109,6 +126,8 @@ git push -u origin main
 
 On Railway.app: New Project → Deploy from GitHub repo → set environment variables
 (`JWT_SECRET`, `DEMO_MODE`) → Railway auto-detects Node.js and runs `npm install` then `npm start`.
+Configure SMTP (and optionally SMS) from Admin > Notifications after first login — no redeploy
+needed, settings are stored in the database.
 
 For subsequent updates:
 ```bash
@@ -123,4 +142,5 @@ Railway redeploys automatically on push to the connected branch.
 `db/db.js` creates the `data/` directory at startup (`fs.mkdirSync(..., { recursive: true })`) so a
 fresh clone or container never crashes with `ENOENT` even though Git does not track empty folders.
 On Railway, without an attached persistent volume, `data/db.json` resets on every redeploy — fine for
-a demo, but attach a volume mounted at `/app/data` if you need data to survive restarts.
+a demo, but attach a volume mounted at `/app/data` if you need data (including user accounts, coach
+assignments and notification settings) to survive restarts.

@@ -1,5 +1,6 @@
 const express = require("express");
 const { db } = require("../db/db");
+const { accessibleCoachIds } = require("../services/access");
 
 const router = express.Router();
 const SCORE_BY_BAND = { GREEN: 100, YELLOW: 75, ORANGE: 40, RED: 10 };
@@ -11,42 +12,46 @@ function latestReadingFor(axleId) {
 
 router.get("/fleet", async (req, res) => {
   await db.read();
-  const coaches = db.data.coaches.map((c) => {
-    const rake = db.data.rakes.find((r) => r.id === c.rake_id);
-    const axles = db.data.axles
-      .filter((a) => a.coach_id === c.id)
-      .sort((a, b) => a.axle_number - b.axle_number)
-      .map((a) => {
-        const latest = latestReadingFor(a.id);
-        return {
-          axle_id: a.id,
-          axle_number: a.axle_number,
-          band: latest ? latest.band : "GREEN",
-          vibration_g: latest ? latest.vibration_g : null,
-          temperature_c: latest ? latest.temperature_c : null,
-        };
-      });
-    const scores = axles.map((a) => SCORE_BY_BAND[a.band] ?? 100);
-    const healthScore = scores.length ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length) : 100;
-    return {
-      coach_id: c.id,
-      coach_number: c.coach_number,
-      coach_type: c.coach_type,
-      rake_name: rake ? rake.rake_name : "Unassigned",
-      rake_type: rake ? rake.rake_type : "-",
-      status: c.status,
-      axles,
-      health_score: healthScore,
-    };
-  });
+  const allowed = new Set(accessibleCoachIds(req));
+  const coaches = db.data.coaches
+    .filter((c) => allowed.has(c.id))
+    .map((c) => {
+      const rake = db.data.rakes.find((r) => r.id === c.rake_id);
+      const axles = db.data.axles
+        .filter((a) => a.coach_id === c.id)
+        .sort((a, b) => a.axle_number - b.axle_number)
+        .map((a) => {
+          const latest = latestReadingFor(a.id);
+          return {
+            axle_id: a.id,
+            axle_number: a.axle_number,
+            band: latest ? latest.band : "GREEN",
+            vibration_g: latest ? latest.vibration_g : null,
+            temperature_c: latest ? latest.temperature_c : null,
+          };
+        });
+      const scores = axles.map((a) => SCORE_BY_BAND[a.band] ?? 100);
+      const healthScore = scores.length ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length) : 100;
+      return {
+        coach_id: c.id,
+        coach_number: c.coach_number,
+        coach_type: c.coach_type,
+        rake_name: rake ? rake.rake_name : "Unassigned",
+        rake_type: rake ? rake.rake_type : "-",
+        status: c.status,
+        axles,
+        health_score: healthScore,
+      };
+    });
   res.json(coaches.sort((a, b) => a.health_score - b.health_score));
 });
 
 router.get("/worst-axles", async (req, res) => {
   await db.read();
+  const allowed = new Set(accessibleCoachIds(req));
   const limit = Number(req.query.limit) || 10;
   const rows = [];
-  db.data.axles.forEach((a) => {
+  db.data.axles.filter((a) => allowed.has(a.coach_id)).forEach((a) => {
     const latest = latestReadingFor(a.id);
     if (!latest) return;
     const coach = db.data.coaches.find((c) => c.id === a.coach_id);

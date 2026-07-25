@@ -1,5 +1,6 @@
 const express = require("express");
 const { db } = require("../db/db");
+const { accessibleCoachIds, requireCoachAccess } = require("../services/access");
 
 const router = express.Router();
 const BAND_ORDER = ["GREEN", "YELLOW", "ORANGE", "RED"];
@@ -24,38 +25,44 @@ function coachOverallBand(coachId) {
 
 router.get("/", async (req, res) => {
   await db.read();
-  const coaches = db.data.coaches.map((c) => {
-    const rake = db.data.rakes.find((r) => r.id === c.rake_id);
-    const openAlerts = db.data.alerts.filter((a) => a.coach_id === c.id && !a.acknowledged).length;
-    const piccuFault = db.data.piccuSystems.filter((p) => p.coach_id === c.id && p.status !== "Online").length;
-    return {
-      ...c,
-      rake_name: rake ? rake.rake_name : "Unassigned",
-      rake_type: rake ? rake.rake_type : "-",
-      overall_band: coachOverallBand(c.id),
-      open_alerts: openAlerts,
-      piccu_faults: piccuFault,
-      axle_count: db.data.axles.filter((a) => a.coach_id === c.id).length,
-    };
-  });
+  const allowed = new Set(accessibleCoachIds(req));
+  const coaches = db.data.coaches
+    .filter((c) => allowed.has(c.id))
+    .map((c) => {
+      const rake = db.data.rakes.find((r) => r.id === c.rake_id);
+      const openAlerts = db.data.alerts.filter((a) => a.coach_id === c.id && !a.acknowledged).length;
+      const piccuFault = db.data.piccuSystems.filter((p) => p.coach_id === c.id && p.status !== "Online").length;
+      return {
+        ...c,
+        rake_name: rake ? rake.rake_name : "Unassigned",
+        rake_type: rake ? rake.rake_type : "-",
+        overall_band: coachOverallBand(c.id),
+        open_alerts: openAlerts,
+        piccu_faults: piccuFault,
+        axle_count: db.data.axles.filter((a) => a.coach_id === c.id).length,
+      };
+    });
   res.json(coaches);
 });
 
 router.get("/summary", async (req, res) => {
   await db.read();
+  const allowed = new Set(accessibleCoachIds(req));
+  const myCoaches = db.data.coaches.filter((c) => allowed.has(c.id));
   const bandCounts = { GREEN: 0, YELLOW: 0, ORANGE: 0, RED: 0 };
-  db.data.coaches.forEach((c) => { bandCounts[coachOverallBand(c.id)]++; });
+  myCoaches.forEach((c) => { bandCounts[coachOverallBand(c.id)]++; });
+  const myCoachIds = myCoaches.map((c) => c.id);
   res.json({
-    total_coaches: db.data.coaches.length,
-    total_rakes: db.data.rakes.length,
-    total_axles: db.data.axles.length,
-    open_alerts: db.data.alerts.filter((a) => !a.acknowledged).length,
-    piccu_faults: db.data.piccuSystems.filter((p) => p.status !== "Online").length,
+    total_coaches: myCoaches.length,
+    total_rakes: new Set(myCoaches.map((c) => c.rake_id)).size,
+    total_axles: db.data.axles.filter((a) => myCoachIds.includes(a.coach_id)).length,
+    open_alerts: db.data.alerts.filter((a) => myCoachIds.includes(a.coach_id) && !a.acknowledged).length,
+    piccu_faults: db.data.piccuSystems.filter((p) => myCoachIds.includes(p.coach_id) && p.status !== "Online").length,
     band_counts: bandCounts,
   });
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireCoachAccess, async (req, res) => {
   await db.read();
   const coach = db.data.coaches.find((c) => c.id === Number(req.params.id));
   if (!coach) return res.status(404).json({ error: "Coach not found" });
@@ -63,7 +70,7 @@ router.get("/:id", async (req, res) => {
   res.json({ ...coach, rake_name: rake ? rake.rake_name : "Unassigned", rake_type: rake ? rake.rake_type : "-" });
 });
 
-router.get("/:id/axles", async (req, res) => {
+router.get("/:id/axles", requireCoachAccess, async (req, res) => {
   await db.read();
   const coachId = Number(req.params.id);
   const axles = db.data.axles
@@ -78,7 +85,7 @@ router.get("/:id/axles", async (req, res) => {
   res.json(axles);
 });
 
-router.get("/:id/alerts", async (req, res) => {
+router.get("/:id/alerts", requireCoachAccess, async (req, res) => {
   await db.read();
   const coachId = Number(req.params.id);
   const alerts = db.data.alerts
@@ -87,7 +94,7 @@ router.get("/:id/alerts", async (req, res) => {
   res.json(alerts);
 });
 
-router.get("/:id/piccu", async (req, res) => {
+router.get("/:id/piccu", requireCoachAccess, async (req, res) => {
   await db.read();
   const coachId = Number(req.params.id);
   const systems = db.data.piccuSystems.filter((p) => p.coach_id === coachId);

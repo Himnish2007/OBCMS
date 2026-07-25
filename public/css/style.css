@@ -246,6 +246,14 @@ body.role-Admin .nav-item.admin-only { display: block; }
 .threshold-group input { width: 100%; padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; margin-top: 0.2rem; }
 #logsettings-form label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); }
 #logsettings-form input { padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; margin: 0.4rem 0 0.9rem; max-width: 220px; }
+.threshold-form > label { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-top: 0.5rem; }
+.threshold-form > input[type="text"], .threshold-form > input[type="password"], .threshold-form > input[type="number"], .threshold-form > input[type="time"] {
+  padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; margin: 0.2rem 0 0.4rem;
+}
+.threshold-form > input[type="checkbox"] { margin-top: 0.6rem; }
+.coach-checkbox-list { max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.8rem; margin-top: 0.3rem; }
+.coach-checkbox-list label { display: flex !important; align-items: center; gap: 0.5rem; font-weight: 400 !important; color: var(--text) !important; padding: 0.25rem 0; margin: 0 !important; }
+.coach-checkbox-list input[type="checkbox"] { width: auto !important; }
 
 /* ---------- Info banner ---------- */
 .info-banner {

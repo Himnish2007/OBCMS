@@ -2,19 +2,24 @@ const express = require("express");
 const { db, save, nextId } = require("../db/db");
 const { requireRole } = require("../services/auth");
 const { coachOverallBand } = require("./coaches");
+const { accessibleCoachIds, getCurrentUser } = require("../services/access");
 
 const router = express.Router();
 
 router.get("/", async (req, res) => {
   await db.read();
+  const user = getCurrentUser(req);
+  const allowed = new Set(accessibleCoachIds(req));
   const rakes = db.data.rakes.map((r) => {
     const coaches = db.data.coaches
-      .filter((c) => c.rake_id === r.id)
+      .filter((c) => c.rake_id === r.id && allowed.has(c.id))
       .sort((a, b) => a.position - b.position)
       .map((c) => ({ ...c, overall_band: coachOverallBand(c.id) }));
     return { ...r, coach_count: coaches.length, coaches };
   });
-  res.json(rakes);
+  // Non-Admin users only see rakes that actually contain at least one of their coaches
+  const visible = user && user.role === "Admin" ? rakes : rakes.filter((r) => r.coach_count > 0);
+  res.json(visible);
 });
 
 router.post("/", requireRole(["Admin", "Supervisor"]), async (req, res) => {
@@ -35,6 +40,9 @@ router.put("/:id", requireRole(["Admin", "Supervisor"]), async (req, res) => {
   const rake = db.data.rakes.find((r) => r.id === Number(req.params.id));
   if (!rake) return res.status(404).json({ error: "Rake not found" });
   const { rake_name, rake_type, zone, depot } = req.body || {};
+  if (rake_name && db.data.rakes.some((r) => r.rake_name === rake_name && r.id !== rake.id)) {
+    return res.status(409).json({ error: "Another rake already uses this name" });
+  }
   if (rake_name) rake.rake_name = rake_name;
   if (rake_type) rake.rake_type = rake_type;
   if (zone) rake.zone = zone;
@@ -46,6 +54,8 @@ router.put("/:id", requireRole(["Admin", "Supervisor"]), async (req, res) => {
 router.delete("/:id", requireRole("Admin"), async (req, res) => {
   await db.read();
   const rakeId = Number(req.params.id);
+  const exists = db.data.rakes.some((r) => r.id === rakeId);
+  if (!exists) return res.status(404).json({ error: "Rake not found" });
   const hasCoaches = db.data.coaches.some((c) => c.rake_id === rakeId);
   if (hasCoaches) {
     return res.status(400).json({ error: "Cannot delete a rake that still has coaches assigned. Swap coaches out first." });
@@ -89,7 +99,10 @@ router.post("/swap-coach", requireRole(["Admin", "Supervisor"]), async (req, res
 
 router.get("/swap-log", async (req, res) => {
   await db.read();
-  const log = [...db.data.coachSwapLog].sort((a, b) => new Date(b.swapped_at) - new Date(a.swapped_at));
+  const allowed = new Set(accessibleCoachIds(req));
+  const log = db.data.coachSwapLog
+    .filter((l) => allowed.has(l.coach_id))
+    .sort((a, b) => new Date(b.swapped_at) - new Date(a.swapped_at));
   res.json(log);
 });
 

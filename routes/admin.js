@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const { db, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS } = require("../db/db");
 const { requireRole } = require("../services/auth");
+const { sendEmail } = require("../services/mailer");
 
 const router = express.Router();
 const VALID_ROLES = ["Admin", "Supervisor", "Viewer"];
@@ -9,11 +10,14 @@ const VALID_ROLES = ["Admin", "Supervisor", "Viewer"];
 // ---------------- Users ----------------
 router.get("/users", requireRole(["Admin"]), async (req, res) => {
   await db.read();
-  res.json(db.data.users.map((u) => ({ id: u.id, username: u.username, name: u.name, role: u.role })));
+  res.json(db.data.users.map((u) => ({
+    id: u.id, username: u.username, name: u.name, role: u.role,
+    email: u.email || "", phone: u.phone || "", assigned_coaches: u.assigned_coaches || [],
+  })));
 });
 
 router.post("/users", requireRole(["Admin"]), async (req, res) => {
-  const { username, password, name, role } = req.body || {};
+  const { username, password, name, role, email, phone, assigned_coaches } = req.body || {};
   if (!username || !password || !name || !role) {
     return res.status(400).json({ error: "username, password, name and role are required" });
   }
@@ -23,17 +27,22 @@ router.post("/users", requireRole(["Admin"]), async (req, res) => {
   if (db.data.users.some((u) => u.username === username)) {
     return res.status(409).json({ error: "Username already exists" });
   }
-  const user = { id: nextId(db.data.users), username, passwordHash: bcrypt.hashSync(password, 8), name, role };
+  const user = {
+    id: nextId(db.data.users),
+    username, passwordHash: bcrypt.hashSync(password, 8), name, role,
+    email: email || "", phone: phone || "",
+    assigned_coaches: Array.isArray(assigned_coaches) ? assigned_coaches.map(Number) : [],
+  };
   db.data.users.push(user);
   await save();
-  res.status(201).json({ id: user.id, username: user.username, name: user.name, role: user.role });
+  res.status(201).json({ id: user.id, username: user.username, name: user.name, role: user.role, email: user.email, phone: user.phone, assigned_coaches: user.assigned_coaches });
 });
 
 router.put("/users/:id", requireRole(["Admin"]), async (req, res) => {
   await db.read();
   const user = db.data.users.find((u) => u.id === Number(req.params.id));
   if (!user) return res.status(404).json({ error: "User not found" });
-  const { name, role, password } = req.body || {};
+  const { name, role, password, email, phone, assigned_coaches } = req.body || {};
   if (name) user.name = name;
   if (role) {
     if (!VALID_ROLES.includes(role)) return res.status(400).json({ error: `role must be one of ${VALID_ROLES.join(", ")}` });
@@ -43,8 +52,11 @@ router.put("/users/:id", requireRole(["Admin"]), async (req, res) => {
     if (password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
     user.passwordHash = bcrypt.hashSync(password, 8);
   }
+  if (email !== undefined) user.email = email;
+  if (phone !== undefined) user.phone = phone;
+  if (assigned_coaches !== undefined) user.assigned_coaches = Array.isArray(assigned_coaches) ? assigned_coaches.map(Number) : [];
   await save();
-  res.json({ id: user.id, username: user.username, name: user.name, role: user.role });
+  res.json({ id: user.id, username: user.username, name: user.name, role: user.role, email: user.email, phone: user.phone, assigned_coaches: user.assigned_coaches });
 });
 
 router.delete("/users/:id", requireRole(["Admin"]), async (req, res) => {
@@ -119,19 +131,21 @@ router.delete("/coaches/:id", requireRole(["Admin"]), async (req, res) => {
   db.data.alerts = db.data.alerts.filter((a) => a.coach_id !== coachId);
   db.data.piccuSystems = db.data.piccuSystems.filter((p) => p.coach_id !== coachId);
   db.data.piccuTelemetry = db.data.piccuTelemetry.filter((t) => t.coach_id !== coachId);
+  // Remove the coach from anyone's assignment list too
+  db.data.users.forEach((u) => { u.assigned_coaches = (u.assigned_coaches || []).filter((id) => id !== coachId); });
 
   await save();
   res.json({ success: true });
 });
 
-// ---------------- Alert Thresholds ----------------
+// ---------------- Alert Thresholds + Log Interval (combined, per Admin > Alert Thresholds page) ----------------
 router.get("/thresholds", requireRole(["Admin", "Supervisor"]), async (req, res) => {
   await db.read();
-  res.json(db.data.thresholds);
+  res.json({ ...db.data.thresholds, log_interval_seconds: db.data.settings.log_interval_seconds });
 });
 
 router.put("/thresholds", requireRole(["Admin"]), async (req, res) => {
-  const { vibration, temperature } = req.body || {};
+  const { vibration, temperature, log_interval_seconds } = req.body || {};
   await db.read();
   if (vibration) {
     const { yellow, orange, red } = vibration;
@@ -147,25 +161,68 @@ router.put("/thresholds", requireRole(["Admin"]), async (req, res) => {
     }
     db.data.thresholds.temperature = { yellow, orange, red };
   }
-  await save();
-  res.json(db.data.thresholds);
-});
-
-// ---------------- Settings (Log Time) ----------------
-router.get("/settings", requireRole(["Admin", "Supervisor"]), async (req, res) => {
-  await db.read();
-  res.json(db.data.settings);
-});
-
-router.put("/settings", requireRole(["Admin"]), async (req, res) => {
-  const { log_interval_seconds } = req.body || {};
-  if (typeof log_interval_seconds !== "number" || log_interval_seconds < 2 || log_interval_seconds > 3600) {
-    return res.status(400).json({ error: "log_interval_seconds must be a number between 2 and 3600" });
+  if (log_interval_seconds !== undefined) {
+    if (typeof log_interval_seconds !== "number" || log_interval_seconds < 2 || log_interval_seconds > 3600) {
+      return res.status(400).json({ error: "log_interval_seconds must be a number between 2 and 3600" });
+    }
+    db.data.settings.log_interval_seconds = log_interval_seconds;
   }
-  await db.read();
-  db.data.settings.log_interval_seconds = log_interval_seconds;
   await save();
-  res.json(db.data.settings);
+  res.json({ ...db.data.thresholds, log_interval_seconds: db.data.settings.log_interval_seconds });
+});
+
+// ---------------- Notifications: SMTP / SMS / Daily Report Time ----------------
+router.get("/notifications", requireRole(["Admin"]), async (req, res) => {
+  await db.read();
+  const { smtp, sms, daily_report_time } = db.data.settings;
+  // Never send the raw password back to the client
+  res.json({
+    daily_report_time,
+    smtp: { ...smtp, pass: smtp.pass ? "••••••••" : "" },
+    sms: { ...sms, api_key: sms.api_key ? "••••••••" : "" },
+  });
+});
+
+router.put("/notifications", requireRole(["Admin"]), async (req, res) => {
+  const { daily_report_time, smtp, sms } = req.body || {};
+  await db.read();
+  if (daily_report_time) {
+    if (!/^\d{2}:\d{2}$/.test(daily_report_time)) return res.status(400).json({ error: "daily_report_time must be in HH:mm format" });
+    db.data.settings.daily_report_time = daily_report_time;
+  }
+  if (smtp) {
+    db.data.settings.smtp = {
+      enabled: !!smtp.enabled,
+      host: smtp.host ?? db.data.settings.smtp.host,
+      port: smtp.port ?? db.data.settings.smtp.port,
+      secure: !!smtp.secure,
+      user: smtp.user ?? db.data.settings.smtp.user,
+      pass: smtp.pass && smtp.pass !== "••••••••" ? smtp.pass : db.data.settings.smtp.pass,
+      from_name: smtp.from_name ?? db.data.settings.smtp.from_name,
+      from_email: smtp.from_email ?? db.data.settings.smtp.from_email,
+    };
+  }
+  if (sms) {
+    db.data.settings.sms = {
+      enabled: !!sms.enabled,
+      provider: sms.provider ?? db.data.settings.sms.provider,
+      api_key: sms.api_key && sms.api_key !== "••••••••" ? sms.api_key : db.data.settings.sms.api_key,
+      sender_id: sms.sender_id ?? db.data.settings.sms.sender_id,
+    };
+  }
+  await save();
+  res.json({ success: true });
+});
+
+router.post("/notifications/test-email", requireRole(["Admin"]), async (req, res) => {
+  const { to } = req.body || {};
+  if (!to) return res.status(400).json({ error: "Provide a 'to' email address" });
+  const log = await sendEmail({
+    toAddress: to,
+    subject: "Himnish OBCMS & PICCU — SMTP Test",
+    text: "This is a test email confirming your SMTP configuration is working.",
+  });
+  res.json(log);
 });
 
 module.exports = router;
