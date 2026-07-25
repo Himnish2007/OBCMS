@@ -81,6 +81,16 @@ body {
 .nav-item.active { background: var(--orange); color: #fff; }
 
 .sidebar-footer { padding: 1rem; border-top: 1px solid rgba(255,255,255,0.1); }
+.lang-switch { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.7rem; flex-wrap: wrap; }
+.lang-switch-label { font-size: 0.72rem; color: #90a4c2; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 0.2rem; }
+.lang-btn {
+  padding: 0.3rem 0.65rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.25);
+  background: transparent; color: #c7d6ec; font-size: 0.78rem; font-weight: 700; cursor: pointer;
+}
+.lang-btn.active { background: var(--orange, #eb5b12); border-color: var(--orange, #eb5b12); color: #fff; }
+.login-card .lang-switch { justify-content: center; margin-bottom: 0; }
+.login-card .lang-btn { border-color: var(--border); color: var(--text-muted); }
+.login-card .lang-btn.active { background: var(--orange, #eb5b12); border-color: var(--orange, #eb5b12); color: #fff; }
 .user-name { font-size: 0.82rem; color: #c7d6ec; margin-bottom: 0.5rem; }
 .logout-btn {
   width: 100%; background: rgba(255,255,255,0.08); color: #fff; border: none; padding: 0.5rem;

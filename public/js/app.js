@@ -98,7 +98,9 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
     const view = btn.dataset.view;
     document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
     document.getElementById("view-" + view).classList.remove("hidden");
-    document.getElementById("view-title").textContent = btn.textContent;
+    const titleEl = document.getElementById("view-title");
+    titleEl.setAttribute("data-i18n", "nav." + view);
+    titleEl.textContent = t("nav." + view);
     loadView(view);
   });
 });
@@ -166,7 +168,7 @@ function populateCoachSelectors() {
   const optionHtml = COACHES.map((c) => `<option value="${c.id}">${c.coach_number} — ${c.coach_type} (${c.rake_name})</option>`).join("");
   obcmsSel.innerHTML = optionHtml;
   piccuSel.innerHTML = optionHtml;
-  reportsSel.innerHTML = `<option value="">All Coaches</option>` + optionHtml;
+  reportsSel.innerHTML = `<option value="">${t("reports.allMyCoaches")}</option>` + optionHtml;
 
   // Typing (datalist) support alongside the dropdowns
   const datalistHtml = COACHES.map((c) => `<option value="${c.coach_number}">`).join("");
@@ -254,7 +256,7 @@ function renderOverviewCoachOptions() {
   const select = document.getElementById("overview-coach-select");
   datalist.innerHTML = COACHES.map((c) => `<option value="${c.coach_number}">`).join("");
   const prevValue = select.value;
-  select.innerHTML = `<option value="">All Coaches</option>` + COACHES.map((c) => `<option value="${c.coach_number}">${c.coach_number} — ${c.coach_type} (${c.rake_name})</option>`).join("");
+  select.innerHTML = `<option value="">${t("common.allCoaches")}</option>` + COACHES.map((c) => `<option value="${c.coach_number}">${c.coach_number} — ${c.coach_type} (${c.rake_name})</option>`).join("");
   select.value = prevValue && COACHES.some((c) => c.coach_number === prevValue) ? prevValue : "";
 }
 
@@ -267,12 +269,12 @@ function renderFleetTable() {
       <td><b>${c.coach_number}</b></td>
       <td>${c.coach_type}</td>
       <td>${c.rake_name} <span class="rake-type-tag ${c.rake_type.replace(/\s/g, "")}">${c.rake_type}</span></td>
-      <td><span class="band-pill ${c.overall_band}">${c.overall_band}</span></td>
+      <td><span class="band-pill ${c.overall_band}">${t("common.band." + c.overall_band)}</span></td>
       <td>${c.open_alerts}</td>
       <td>${c.piccu_faults}</td>
-      <td><button class="btn-small" onclick="jumpToCoach(${c.id})">View OBCMS</button></td>
+      <td><button class="btn-small" onclick="jumpToCoach(${c.id})">${t("overview.table.viewObcms")}</button></td>
     </tr>
-  `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">No coach matches "${overviewCoachQuery}".</td></tr>`;
+  `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">${t("overview.table.noMatch", { q: overviewCoachQuery })}</td></tr>`;
 }
 
 document.getElementById("overview-coach-search").addEventListener("input", (e) => {
@@ -310,14 +312,14 @@ async function loadObcms() {
         <div class="sensor-card ${a.id === selectedAxleId ? "selected" : ""}" onclick="selectAxle(${a.id})">
           <div class="sensor-card-top">
             <div>
-              <div class="sensor-loc">Axle-${a.axle_number}</div>
-              <div class="sensor-type">Bearing / Vibration + Temp</div>
+              <div class="sensor-loc">${t("common.axlePrefix")}${a.axle_number}</div>
+              <div class="sensor-type">${t("obcms.sensorType")}</div>
             </div>
-            <span class="band-pill ${band}">${band}</span>
+            <span class="band-pill ${band}">${t("common.band." + band)}</span>
           </div>
           <div class="sensor-metrics">
-            <div>Vib: <b>${vib}g</b></div>
-            <div>Temp: <b>${temp}°C</b></div>
+            <div>${t("common.vibShort")} <b>${vib}g</b></div>
+            <div>${t("common.tempShort")} <b>${temp}°C</b></div>
           </div>
         </div>
       `;
@@ -331,12 +333,12 @@ async function loadObcms() {
     tbody.innerHTML = alerts.slice(0, 15).map((a) => `
       <tr>
         <td>${new Date(a.created_at).toLocaleTimeString()}</td>
-        <td>Axle-${a.axle_number ?? "-"}</td>
-        <td>${a.severity}</td>
+        <td>${t("common.axlePrefix")}${a.axle_number ?? "-"}</td>
+        <td>${a.severity === "Critical" ? t("common.critical") : a.severity === "High" ? t("common.high") : a.severity}</td>
         <td>${a.message}</td>
-        <td>${a.acknowledged ? '<span class="status-pill Online">Acknowledged</span>' : '<span class="status-pill Fault">Open</span>'}</td>
+        <td>${a.acknowledged ? `<span class="status-pill Online">${t("common.acknowledged")}</span>` : `<span class="status-pill Fault">${t("common.open")}</span>`}</td>
       </tr>
-    `).join("") || `<tr><td colspan="5" style="color:#5b6b7f;">No alerts for this coach.</td></tr>`;
+    `).join("") || `<tr><td colspan="5" style="color:#5b6b7f;">${t("obcms.noAlerts")}</td></tr>`;
   } catch (err) { console.error(err); }
 }
 
@@ -357,8 +359,8 @@ function renderObcmsChart(axle) {
     data: {
       labels,
       datasets: [
-        { label: `Vibration (g) — Axle-${axle.axle_number}`, data: vibData, borderColor: "#eb5b12", backgroundColor: "rgba(235,91,18,0.08)", tension: 0.3, fill: true, pointRadius: 2, yAxisID: "y" },
-        { label: `Temperature (°C) — Axle-${axle.axle_number}`, data: tempData, borderColor: "#0b3d78", backgroundColor: "rgba(11,61,120,0.06)", tension: 0.3, fill: true, pointRadius: 2, yAxisID: "y1" },
+        { label: `${t("obcms.chart.vibrationLabel")}${axle.axle_number}`, data: vibData, borderColor: "#eb5b12", backgroundColor: "rgba(235,91,18,0.08)", tension: 0.3, fill: true, pointRadius: 2, yAxisID: "y" },
+        { label: `${t("obcms.chart.temperatureLabel")}${axle.axle_number}`, data: tempData, borderColor: "#0b3d78", backgroundColor: "rgba(11,61,120,0.06)", tension: 0.3, fill: true, pointRadius: 2, yAxisID: "y1" },
       ],
     },
     options: {
@@ -381,8 +383,8 @@ async function loadPiccu() {
     const grid = document.getElementById("piccu-systems-grid");
     grid.innerHTML = systems.map((s) => `
       <div class="piccu-item">
-        <span class="piccu-item-name">${s.system_name}</span>
-        <span class="status-pill ${s.status}">${s.status}</span>
+        <span class="piccu-item-name">${t("piccuSystem." + s.system_name)}</span>
+        <span class="status-pill ${s.status}">${s.status === "Online" ? t("common.online") : s.status === "Fault" ? t("common.fault") : t("common.offline")}</span>
       </div>
     `).join("");
 
@@ -406,7 +408,7 @@ async function loadHealth() {
         <td><b>${c.coach_number}</b><br/><span class="muted">${c.coach_type}</span></td>
         <td>${c.rake_name}</td>
         <td><span class="health-score-pill" style="background:${c.health_score >= 85 ? "#2e7d32" : c.health_score >= 60 ? "#d9a400" : c.health_score >= 35 ? "#eb5b12" : "#c0392b"}">${c.health_score}</span></td>
-        <td><div class="axle-heatmap">${c.axles.map((a) => `<div class="axle-cell ${a.band}" title="Axle-${a.axle_number}: ${a.band}">${a.axle_number}</div>`).join("")}</div></td>
+        <td><div class="axle-heatmap">${c.axles.map((a) => `<div class="axle-cell ${a.band}" title="${t("common.axlePrefix")}${a.axle_number}: ${t("common.band." + a.band)}">${a.axle_number}</div>`).join("")}</div></td>
       </tr>
     `).join("");
 
@@ -415,13 +417,13 @@ async function loadHealth() {
     wbody.innerHTML = worst.map((r) => `
       <tr>
         <td>${r.coach_number}</td>
-        <td>Axle-${r.axle_number}</td>
-        <td><span class="band-pill ${r.band}">${r.band}</span></td>
+        <td>${t("common.axlePrefix")}${r.axle_number}</td>
+        <td><span class="band-pill ${r.band}">${t("common.band." + r.band)}</span></td>
         <td>${r.vibration_g}</td>
         <td>${r.temperature_c}</td>
         <td>${new Date(r.ts).toLocaleTimeString()}</td>
       </tr>
-    `).join("") || `<tr><td colspan="6" style="color:#5b6b7f;">No data yet.</td></tr>`;
+    `).join("") || `<tr><td colspan="6" style="color:#5b6b7f;">${t("health.noData")}</td></tr>`;
   } catch (err) { console.error(err); }
 }
 
@@ -445,7 +447,7 @@ function renderPredictionCoachOptions() {
   datalist.innerHTML = uniqueCoaches.map((c) => `<option value="${c.coach_number}">`).join("");
   const select = document.getElementById("prediction-coach-select");
   const prevValue = select.value;
-  select.innerHTML = `<option value="">All Coaches</option>` + uniqueCoaches.map((c) => `<option value="${c.coach_number}">${c.coach_number}</option>`).join("");
+  select.innerHTML = `<option value="">${t("common.allCoaches")}</option>` + uniqueCoaches.map((c) => `<option value="${c.coach_number}">${c.coach_number}</option>`).join("");
   select.value = prevValue && uniqueCoaches.some((c) => c.coach_number === prevValue) ? prevValue : "";
 }
 
@@ -456,14 +458,14 @@ function renderPredictionTable() {
   tbody.innerHTML = filtered.slice(0, 40).map((p) => `
     <tr>
       <td>${p.coach_number}</td>
-      <td>Axle-${p.axle_number}</td>
-      <td><span class="band-pill ${p.current_band}">${p.current_band}</span></td>
+      <td>${t("common.axlePrefix")}${p.axle_number}</td>
+      <td><span class="band-pill ${p.current_band}">${t("common.band." + p.current_band)}</span></td>
       <td>${p.vibration_trend}</td>
       <td>${p.temperature_trend}</td>
       <td>${p.driver_parameter || "-"}</td>
-      <td>${p.estimated_minutes_to_breach != null ? p.estimated_minutes_to_breach + " min (to " + p.predicted_next_threshold + (p.driver_parameter === "vibration" ? "g" : "°C") + ")" : "Stable"}</td>
+      <td>${p.estimated_minutes_to_breach != null ? p.estimated_minutes_to_breach + " min (to " + p.predicted_next_threshold + (p.driver_parameter === "vibration" ? "g" : "°C") + ")" : t("common.stable")}</td>
     </tr>
-  `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">${predictionCoachQuery ? `No coach matches "${predictionCoachQuery}".` : "Not enough history yet — check back shortly."}</td></tr>`;
+  `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">${predictionCoachQuery ? t("prediction.noMatch", { q: predictionCoachQuery }) : t("prediction.noHistory")}</td></tr>`;
 }
 
 document.getElementById("prediction-coach-search").addEventListener("input", (e) => {
@@ -502,7 +504,7 @@ async function loadAnalytics() {
       type: "bar",
       data: {
         labels: data.top_alert_coaches.map((c) => c.coach_number),
-        datasets: [{ label: "Alerts", data: data.top_alert_coaches.map((c) => c.alert_count), backgroundColor: "#c0392b" }],
+        datasets: [{ label: t("alerts.datasetLabel"), data: data.top_alert_coaches.map((c) => c.alert_count), backgroundColor: "#c0392b" }],
       },
       options: { responsive: true, indexAxis: "y" },
     });
@@ -513,7 +515,7 @@ async function loadAnalytics() {
       type: "line",
       data: {
         labels: data.alert_trend.map((t) => new Date(t.minute).toLocaleTimeString()),
-        datasets: [{ label: "Alerts per minute", data: data.alert_trend.map((t) => t.count), borderColor: "#2e7d32", backgroundColor: "rgba(46,125,50,0.1)", fill: true, tension: 0.3 }],
+        datasets: [{ label: t("analytics.chart.alertsPerMinute"), data: data.alert_trend.map((t) => t.count), borderColor: "#2e7d32", backgroundColor: "rgba(46,125,50,0.1)", fill: true, tension: 0.3 }],
       },
       options: { responsive: true },
     });
@@ -528,7 +530,7 @@ async function loadAnalytics() {
       const firstId = select.value || analyticsCoachesCache[0].id;
       loadCoachAnalyticsDetail(firstId);
     } else {
-      document.getElementById("analytics-coach-detail").innerHTML = `<p class="muted">No coaches assigned to this account yet.</p>`;
+      document.getElementById("analytics-coach-detail").innerHTML = `<p class="muted">${t("analytics.noCoaches")}</p>`;
     }
   } catch (err) { console.error(err); }
 }
@@ -551,24 +553,24 @@ async function loadCoachAnalyticsDetail(coachId) {
 
     container.innerHTML = `
       <div class="kpi-grid" style="margin:1rem 0;">
-        <div class="kpi-card"><div class="kpi-label">Avg Vibration</div><div class="kpi-value">${d.avg_vibration_g}g</div></div>
-        <div class="kpi-card"><div class="kpi-label">Avg Temperature</div><div class="kpi-value">${d.avg_temperature_c}°C</div></div>
-        <div class="kpi-card alert"><div class="kpi-label">Open Alerts</div><div class="kpi-value">${d.open_alerts}</div></div>
-        <div class="kpi-card"><div class="kpi-label">Total Alerts</div><div class="kpi-value">${d.total_alerts}</div></div>
+        <div class="kpi-card"><div class="kpi-label">${t("analytics.kpi.avgVibration")}</div><div class="kpi-value">${d.avg_vibration_g}g</div></div>
+        <div class="kpi-card"><div class="kpi-label">${t("analytics.kpi.avgTemperature")}</div><div class="kpi-value">${d.avg_temperature_c}°C</div></div>
+        <div class="kpi-card alert"><div class="kpi-label">${t("analytics.kpi.openAlerts")}</div><div class="kpi-value">${d.open_alerts}</div></div>
+        <div class="kpi-card"><div class="kpi-label">${t("analytics.kpi.totalAlerts")}</div><div class="kpi-value">${d.total_alerts}</div></div>
       </div>
       <canvas id="coach-analytics-chart" height="90"></canvas>
     `;
 
     const ctx = document.getElementById("coach-analytics-chart").getContext("2d");
     if (analyticsCharts.coachDetail) analyticsCharts.coachDetail.destroy();
-    const labels = d.axles.map((a) => `Axle-${a.axle_number}`);
+    const labels = d.axles.map((a) => `${t("common.axlePrefix")}${a.axle_number}`);
     analyticsCharts.coachDetail = new Chart(ctx, {
       type: "bar",
       data: {
         labels,
         datasets: [
-          { label: "Vibration (g)", data: d.axles.map((a) => (a.latest ? a.latest.vibration_g : 0)), backgroundColor: "#eb5b12", yAxisID: "y" },
-          { label: "Temperature (°C)", data: d.axles.map((a) => (a.latest ? a.latest.temperature_c : 0)), backgroundColor: "#0b3d78", yAxisID: "y1" },
+          { label: t("analytics.chart.datasetVibration"), data: d.axles.map((a) => (a.latest ? a.latest.vibration_g : 0)), backgroundColor: "#eb5b12", yAxisID: "y" },
+          { label: t("analytics.chart.datasetTemperature"), data: d.axles.map((a) => (a.latest ? a.latest.temperature_c : 0)), backgroundColor: "#0b3d78", yAxisID: "y1" },
         ],
       },
       options: {
@@ -592,12 +594,12 @@ async function loadAlerts() {
         <td>${new Date(a.created_at).toLocaleString()}</td>
         <td>${a.coach_number}</td>
         <td>${a.axle_label}</td>
-        <td>${a.severity}</td>
+        <td>${a.severity === "Critical" ? t("common.critical") : a.severity === "High" ? t("common.high") : a.severity}</td>
         <td>${a.message}</td>
-        <td>${a.acknowledged ? '<span class="status-pill Online">Acknowledged</span>' : '<span class="status-pill Fault">Open</span>'}</td>
-        <td>${a.acknowledged ? "" : `<button class="btn-small" onclick="ackAlert(${a.id})">Acknowledge</button>`}</td>
+        <td>${a.acknowledged ? `<span class="status-pill Online">${t("common.acknowledged")}</span>` : `<span class="status-pill Fault">${t("common.open")}</span>`}</td>
+        <td>${a.acknowledged ? "" : `<button class="btn-small" onclick="ackAlert(${a.id})">${t("alerts.action.acknowledge")}</button>`}</td>
       </tr>
-    `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">No alerts to show.</td></tr>`;
+    `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">${t("alerts.noAlerts")}</td></tr>`;
   } catch (err) { console.error(err); }
 }
 
@@ -615,10 +617,10 @@ async function loadReports() {
   try {
     const s = await apiFetch("/reports/summary");
     document.getElementById("reports-summary-grid").innerHTML = `
-      <div class="kpi-card"><div class="kpi-label">Total Coaches</div><div class="kpi-value">${s.total_coaches}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Total Rakes</div><div class="kpi-value">${s.total_rakes}</div></div>
-      <div class="kpi-card alert"><div class="kpi-label">Open Alerts</div><div class="kpi-value">${s.open_alerts}</div></div>
-      <div class="kpi-card"><div class="kpi-label">Acknowledged Alerts</div><div class="kpi-value">${s.acknowledged_alerts}</div></div>
+      <div class="kpi-card"><div class="kpi-label">${t("overview.kpi.totalCoaches")}</div><div class="kpi-value">${s.total_coaches}</div></div>
+      <div class="kpi-card"><div class="kpi-label">${t("overview.kpi.totalRakes")}</div><div class="kpi-value">${s.total_rakes}</div></div>
+      <div class="kpi-card alert"><div class="kpi-label">${t("overview.kpi.openAlerts")}</div><div class="kpi-value">${s.open_alerts}</div></div>
+      <div class="kpi-card"><div class="kpi-label">${t("reports.kpi.acknowledgedAlerts")}</div><div class="kpi-value">${s.acknowledged_alerts}</div></div>
     `;
   } catch (err) { console.error(err); }
 }
@@ -666,19 +668,19 @@ document.getElementById("print-summary").addEventListener("click", () => window.
 
 document.getElementById("send-test-report-btn").addEventListener("click", async () => {
   const resultEl = document.getElementById("send-test-report-result");
-  resultEl.textContent = "Sending...";
+  resultEl.textContent = t("reports.sending");
   resultEl.style.color = "";
   try {
     const res = await apiFetch("/reports/send-test-report", { method: "POST" });
     if (res.log.status === "sent") {
       resultEl.style.color = "var(--green)";
-      resultEl.textContent = `Sent to your email successfully.`;
+      resultEl.textContent = t("reports.sentSuccess");
     } else if (res.log.status === "simulated") {
       resultEl.style.color = "var(--orange)";
-      resultEl.textContent = `Not actually sent — ${res.log.detail} (configure SMTP in Admin > Notifications)`;
+      resultEl.textContent = t("reports.notSent", { detail: res.log.detail });
     } else {
       resultEl.style.color = "var(--red)";
-      resultEl.textContent = `Failed: ${res.log.detail}`;
+      resultEl.textContent = t("reports.failed", { detail: res.log.detail });
     }
   } catch (err) {
     resultEl.style.color = "var(--red)";
@@ -699,9 +701,9 @@ async function loadRakes() {
             <span class="rake-type-tag ${r.rake_type.replace(/\s/g, "")}">${r.rake_type}</span>
           </div>
           <div style="display:flex;align-items:center;gap:0.6rem;">
-            <div class="rake-meta">${r.depot} · ${r.zone} · ${r.coach_count} coach(es)</div>
-            <button class="btn-small admin-supervisor-only" onclick="editRake(${r.id})">Edit</button>
-            <button class="btn-danger admin-only" onclick="deleteRake(${r.id})">Delete</button>
+            <div class="rake-meta">${r.depot} · ${r.zone} · ${r.coach_count} ${t("rakes.coachCount")}</div>
+            <button class="btn-small admin-supervisor-only" onclick="editRake(${r.id})">${t("common.edit")}</button>
+            <button class="btn-danger admin-only" onclick="deleteRake(${r.id})">${t("common.delete")}</button>
           </div>
         </div>
         <div class="rake-coach-list">
@@ -709,12 +711,12 @@ async function loadRakes() {
             <div class="rake-coach-chip">
               <span class="coach-no">${c.coach_number}</span>
               <span class="muted">${c.coach_type}</span>
-              <span class="band-pill ${c.overall_band}" style="width:fit-content;">${c.overall_band}</span>
+              <span class="band-pill ${c.overall_band}" style="width:fit-content;">${t("common.band." + c.overall_band)}</span>
             </div>
-          `).join("") || '<span class="muted">No coaches assigned</span>'}
+          `).join("") || `<span class="muted">${t("rakes.noCoachesInRake")}</span>`}
         </div>
       </div>
-    `).join("") || `<div class="card"><p class="muted">No rakes to show.</p></div>`;
+    `).join("") || `<div class="card"><p class="muted">${t("rakes.noRakes")}</p></div>`;
 
     const log = await apiFetch("/rakes/swap-log");
     document.getElementById("swap-log-body").innerHTML = log.map((l) => `
@@ -726,7 +728,7 @@ async function loadRakes() {
         <td>${l.reason}</td>
         <td>${l.swapped_by}</td>
       </tr>
-    `).join("") || `<tr><td colspan="6" style="color:#5b6b7f;">No swaps recorded yet.</td></tr>`;
+    `).join("") || `<tr><td colspan="6" style="color:#5b6b7f;">${t("rakes.noSwaps")}</td></tr>`;
   } catch (err) { console.error(err); }
 }
 
@@ -735,26 +737,26 @@ async function editRake(id) {
   if (!rake) return;
   const rakeCoaches = [...(rake.coaches || [])].sort((a, b) => a.position - b.position);
   openModal(`
-    <h3>Edit Rake — ${rake.rake_name}</h3>
+    <h3>${t("rakes.modal.editTitle", { name: rake.rake_name })}</h3>
     <form id="rake-edit-form">
-      <label>Rake Name</label><input type="text" id="re-name" value="${rake.rake_name}" required />
-      <label>Rake Type</label>
+      <label>${t("rakes.modal.rakeName")}</label><input type="text" id="re-name" value="${rake.rake_name}" required />
+      <label>${t("rakes.modal.rakeType")}</label>
       <select id="re-type">
         <option value="LHB" ${rake.rake_type === "LHB" ? "selected" : ""}>LHB</option>
         <option value="Vande Bharat" ${rake.rake_type === "Vande Bharat" ? "selected" : ""}>Vande Bharat</option>
       </select>
-      <label>Zone</label><input type="text" id="re-zone" value="${rake.zone}" />
-      <label>Depot</label><input type="text" id="re-depot" value="${rake.depot}" />
+      <label>${t("rakes.modal.zone")}</label><input type="text" id="re-zone" value="${rake.zone}" />
+      <label>${t("rakes.modal.depot")}</label><input type="text" id="re-depot" value="${rake.depot}" />
       <p class="modal-error" id="rake-edit-error"></p>
       <div class="modal-actions">
-        <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="btn-primary">Save Changes</button>
+        <button type="button" class="btn-secondary" onclick="closeModal()">${t("common.cancel")}</button>
+        <button type="submit" class="btn-primary">${t("common.saveChanges")}</button>
       </div>
     </form>
 
-    <h3 style="margin-top:1.2rem;">Coach Positions — Total: ${rakeCoaches.length}</h3>
+    <h3 style="margin-top:1.2rem;">${t("rakes.modal.coachPositionsTitle", { n: rakeCoaches.length })}</h3>
     <table class="table" id="re-positions-table">
-      <thead><tr><th>Coach</th><th>Type</th><th>Position</th></tr></thead>
+      <thead><tr><th>${t("rakes.modal.coach")}</th><th>${t("rakes.modal.coachType")}</th><th>${t("rakes.modal.position")}</th></tr></thead>
       <tbody>
         ${rakeCoaches.map((c) => `
           <tr data-coach-id="${c.id}">
@@ -762,18 +764,18 @@ async function editRake(id) {
             <td>${c.coach_type}</td>
             <td><input type="number" class="re-position-input" min="1" value="${c.position}" style="width:80px;" /></td>
           </tr>
-        `).join("") || `<tr><td colspan="3" style="color:#5b6b7f;">No coaches in this rake yet.</td></tr>`}
+        `).join("") || `<tr><td colspan="3" style="color:#5b6b7f;">${t("rakes.noCoachesInRake")}</td></tr>`}
       </tbody>
     </table>
-    <button type="button" class="btn-primary" id="re-save-positions-btn" style="margin-top:0.5rem;">Save Positions</button>
+    <button type="button" class="btn-primary" id="re-save-positions-btn" style="margin-top:0.5rem;">${t("rakes.modal.savePositions")}</button>
     <p class="modal-error" id="re-positions-error"></p>
 
-    <h3 style="margin-top:1.2rem;">+ Add Coach to this Rake</h3>
+    <h3 style="margin-top:1.2rem;">${t("rakes.modal.addCoachTitle")}</h3>
     <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:flex-end;">
-      <div><label style="display:block;font-size:0.8rem;font-weight:700;">Coach Number</label><input type="text" id="re-new-coach-number" placeholder="e.g. LHB-50231" /></div>
-      <div><label style="display:block;font-size:0.8rem;font-weight:700;">Coach Type</label><input type="text" id="re-new-coach-type" placeholder="e.g. AC 3-Tier" /></div>
-      <div><label style="display:block;font-size:0.8rem;font-weight:700;">Position</label><input type="number" id="re-new-coach-position" min="1" value="${rakeCoaches.length + 1}" style="width:90px;" /></div>
-      <button type="button" class="btn-primary" id="re-add-coach-btn">Add</button>
+      <div><label style="display:block;font-size:0.8rem;font-weight:700;">${t("rakes.modal.coachNumber")}</label><input type="text" id="re-new-coach-number" placeholder="${t("rakes.modal.egCoachNumber")}" /></div>
+      <div><label style="display:block;font-size:0.8rem;font-weight:700;">${t("rakes.modal.coachType")}</label><input type="text" id="re-new-coach-type" placeholder="${t("rakes.modal.egCoachType")}" /></div>
+      <div><label style="display:block;font-size:0.8rem;font-weight:700;">${t("rakes.modal.position")}</label><input type="number" id="re-new-coach-position" min="1" value="${rakeCoaches.length + 1}" style="width:90px;" /></div>
+      <button type="button" class="btn-primary" id="re-add-coach-btn">${t("common.add")}</button>
     </div>
     <p class="modal-error" id="re-add-coach-error"></p>
   `);
@@ -791,7 +793,7 @@ async function editRake(id) {
         }),
       });
       closeModal();
-      showToast("Rake updated", "success");
+      showToast(t("rakes.toast.updated"), "success");
       loadRakes();
     } catch (err) { document.getElementById("rake-edit-error").textContent = err.message; }
   });
@@ -807,7 +809,7 @@ async function editRake(id) {
     if (!positions.length) return;
     try {
       await apiFetch(`/rakes/${id}/positions`, { method: "PUT", body: JSON.stringify({ positions }) });
-      showToast("Coach positions updated", "success");
+      showToast(t("rakes.toast.positionsUpdated"), "success");
       loadRakes();
       closeModal();
     } catch (err) { errEl.textContent = err.message; }
@@ -819,13 +821,13 @@ async function editRake(id) {
     const coach_number = document.getElementById("re-new-coach-number").value.trim();
     const coach_type = document.getElementById("re-new-coach-type").value.trim();
     const position = Number(document.getElementById("re-new-coach-position").value);
-    if (!coach_number || !coach_type) { errEl.textContent = "Coach number and type are required."; return; }
+    if (!coach_number || !coach_type) { errEl.textContent = t("rakes.error.coachNumberTypeRequired"); return; }
     try {
       await apiFetch("/admin/coaches", {
         method: "POST",
         body: JSON.stringify({ coach_number, coach_type, rake_id: id, position }),
       });
-      showToast("Coach added to rake", "success");
+      showToast(t("rakes.toast.coachAdded"), "success");
       COACHES = await apiFetch("/coaches");
       populateCoachSelectors();
       await loadRakes();
@@ -836,10 +838,10 @@ async function editRake(id) {
 window.editRake = editRake;
 
 async function deleteRake(id) {
-  if (!confirm("Delete this rake? It must have no coaches assigned.")) return;
+  if (!confirm(t("rakes.confirmDelete"))) return;
   try {
     await apiFetch(`/rakes/${id}`, { method: "DELETE" });
-    showToast("Rake deleted", "success");
+    showToast(t("rakes.toast.deleted"), "success");
     loadRakes();
   } catch (err) { showToast(err.message, "error"); }
 }
@@ -847,20 +849,20 @@ window.deleteRake = deleteRake;
 
 document.getElementById("add-rake-btn").addEventListener("click", () => {
   openModal(`
-    <h3>Add Rake</h3>
+    <h3>${t("rakes.modal.addTitle")}</h3>
     <form id="rake-form">
-      <label>Rake Name</label><input type="text" id="rake-name" required placeholder="e.g. RAKE-15D" />
-      <label>Rake Type</label>
+      <label>${t("rakes.modal.rakeName")}</label><input type="text" id="rake-name" required placeholder="${t("rakes.modal.egRakeName")}" />
+      <label>${t("rakes.modal.rakeType")}</label>
       <select id="rake-type"><option value="LHB">LHB</option><option value="Vande Bharat">Vande Bharat</option></select>
-      <label>Zone</label><input type="text" id="rake-zone" placeholder="e.g. NR" />
-      <label>Depot</label><input type="text" id="rake-depot" placeholder="e.g. Ghaziabad" />
-      <label>Total Coaches in this Rake</label>
+      <label>${t("rakes.modal.zone")}</label><input type="text" id="rake-zone" placeholder="${t("rakes.modal.egZone")}" />
+      <label>${t("rakes.modal.depot")}</label><input type="text" id="rake-depot" placeholder="${t("rakes.modal.egDepot")}" />
+      <label>${t("rakes.modal.totalCoaches")}</label>
       <input type="number" id="rake-total-coaches" min="1" max="24" value="2" />
       <div id="rake-coach-slots" style="margin-top:0.6rem;"></div>
       <p class="modal-error" id="rake-form-error"></p>
       <div class="modal-actions">
-        <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="btn-primary">Create Rake</button>
+        <button type="button" class="btn-secondary" onclick="closeModal()">${t("common.cancel")}</button>
+        <button type="submit" class="btn-primary">${t("rakes.modal.createRake")}</button>
       </div>
     </form>
   `);
@@ -878,13 +880,13 @@ document.getElementById("add-rake-btn").addEventListener("click", () => {
       const prev = existing[pos - 1] || { coach_number: "", coach_type: "" };
       rowsHtml += `
         <tr data-position="${pos}">
-          <td style="padding:0.3rem 0.5rem;font-weight:700;">Position ${pos}</td>
-          <td style="padding:0.3rem 0.5rem;"><input type="text" class="slot-coach-number" placeholder="Coach Number e.g. LHB-50231" value="${prev.coach_number}" required style="width:100%;" /></td>
-          <td style="padding:0.3rem 0.5rem;"><input type="text" class="slot-coach-type" placeholder="Coach Type e.g. AC 3-Tier" value="${prev.coach_type}" required style="width:100%;" /></td>
+          <td style="padding:0.3rem 0.5rem;font-weight:700;">${t("rakes.modal.position")} ${pos}</td>
+          <td style="padding:0.3rem 0.5rem;"><input type="text" class="slot-coach-number" placeholder="${t("rakes.modal.coachNumber")} ${t("rakes.modal.egCoachNumber")}" value="${prev.coach_number}" required style="width:100%;" /></td>
+          <td style="padding:0.3rem 0.5rem;"><input type="text" class="slot-coach-type" placeholder="${t("rakes.modal.coachType")} ${t("rakes.modal.egCoachType")}" value="${prev.coach_type}" required style="width:100%;" /></td>
         </tr>
       `;
     }
-    container.innerHTML = `<table class="table"><thead><tr><th>Position</th><th>Coach Number</th><th>Coach Type</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+    container.innerHTML = `<table class="table"><thead><tr><th>${t("rakes.modal.position")}</th><th>${t("rakes.modal.coachNumber")}</th><th>${t("rakes.modal.coachType")}</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
   }
   renderRakeCoachSlots();
   document.getElementById("rake-total-coaches").addEventListener("input", renderRakeCoachSlots);
@@ -909,7 +911,7 @@ document.getElementById("add-rake-btn").addEventListener("click", () => {
         }),
       });
       closeModal();
-      showToast("Rake created with " + coaches.length + " coach(es)", "success");
+      showToast(t("rakes.toast.created", { n: coaches.length }), "success");
       COACHES = await apiFetch("/coaches");
       populateCoachSelectors();
       loadRakes();
@@ -918,18 +920,18 @@ document.getElementById("add-rake-btn").addEventListener("click", () => {
 });
 
 document.getElementById("swap-coach-btn").addEventListener("click", () => {
-  const coachOptions = COACHES.map((c) => `<option value="${c.id}">${c.coach_number} (currently ${c.rake_name})</option>`).join("");
+  const coachOptions = COACHES.map((c) => `<option value="${c.id}">${c.coach_number} (${t("rakes.swap.currentlyIn", { rake: c.rake_name })})</option>`).join("");
   const rakeOptions = RAKES.map((r) => `<option value="${r.id}">${r.rake_name} (${r.rake_type})</option>`).join("");
   openModal(`
-    <h3>Swap Coach Between Rakes</h3>
+    <h3>${t("rakes.modal.swapTitle")}</h3>
     <form id="swap-form">
-      <label>Coach</label><select id="swap-coach">${coachOptions}</select>
-      <label>Move to Rake</label><select id="swap-rake">${rakeOptions}</select>
-      <label>Reason (optional)</label><input type="text" id="swap-reason" placeholder="e.g. Maintenance reshuffle" />
+      <label>${t("rakes.modal.coach")}</label><select id="swap-coach">${coachOptions}</select>
+      <label>${t("rakes.modal.moveToRake")}</label><select id="swap-rake">${rakeOptions}</select>
+      <label>${t("rakes.modal.reasonOptional")}</label><input type="text" id="swap-reason" placeholder="${t("rakes.modal.egReason")}" />
       <p class="modal-error" id="swap-form-error"></p>
       <div class="modal-actions">
-        <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="btn-primary">Swap Coach</button>
+        <button type="button" class="btn-secondary" onclick="closeModal()">${t("common.cancel")}</button>
+        <button type="submit" class="btn-primary">${t("rakes.btn.swapCoach")}</button>
       </div>
     </form>
   `);
@@ -945,7 +947,7 @@ document.getElementById("swap-coach-btn").addEventListener("click", () => {
         }),
       });
       closeModal();
-      showToast("Coach swapped successfully", "success");
+      showToast(t("rakes.toast.swapped"), "success");
       COACHES = await apiFetch("/coaches");
       populateCoachSelectors();
       loadRakes();
@@ -956,7 +958,7 @@ document.getElementById("swap-coach-btn").addEventListener("click", () => {
 // ================= ADMIN =================
 async function loadAdmin() {
   if (USER.role !== "Admin") {
-    document.getElementById("view-admin").innerHTML = `<div class="card"><p>You do not have permission to view this page.</p></div>`;
+    document.getElementById("view-admin").innerHTML = `<div class="card"><p>${t("admin.noPermission")}</p></div>`;
     return;
   }
   await loadAdminUsers();
@@ -969,7 +971,7 @@ function coachCheckboxListHtml(selectedIds) {
   const selected = new Set((selectedIds || []).map(Number));
   return `<div class="coach-checkbox-list">${COACHES.map((c) => `
     <label><input type="checkbox" class="coach-assign-cb" value="${c.id}" ${selected.has(c.id) ? "checked" : ""} /> ${c.coach_number} — ${c.coach_type} (${c.rake_name})</label>
-  `).join("") || '<span class="muted">No coaches exist yet — create one first.</span>'}</div>`;
+  `).join("") || `<span class="muted">${t("admin.users.table.noCoachesExist")}</span>`}</div>`;
 }
 
 function collectCheckedCoachIds() {
@@ -985,10 +987,10 @@ async function loadAdminUsers() {
       <td>${u.role}</td>
       <td>${u.email || '<span class="muted">-</span>'}</td>
       <td>${u.phone || '<span class="muted">-</span>'}</td>
-      <td>${u.role === "Admin" ? '<span class="muted">All coaches</span>' : (u.assigned_coaches.length ? u.assigned_coaches.length + " coach(es)" : '<span class="muted">None</span>')}</td>
+      <td>${u.role === "Admin" ? `<span class="muted">${t("admin.users.allCoaches")}</span>` : (u.assigned_coaches.length ? u.assigned_coaches.length + " " + t("rakes.coachCount") : `<span class="muted">${t("admin.users.none")}</span>`)}</td>
       <td>
-        <button class="btn-small" onclick="editUser(${u.id})">Edit</button>
-        <button class="btn-danger" onclick="deleteUser(${u.id})">Delete</button>
+        <button class="btn-small" onclick="editUser(${u.id})">${t("common.edit")}</button>
+        <button class="btn-danger" onclick="deleteUser(${u.id})">${t("common.delete")}</button>
       </td>
     </tr>
   `).join("");
@@ -996,21 +998,21 @@ async function loadAdminUsers() {
 
 document.getElementById("add-user-btn").addEventListener("click", () => {
   openModal(`
-    <h3>Add User</h3>
+    <h3>${t("admin.users.modal.addTitle")}</h3>
     <form id="user-form">
-      <label>Username</label><input type="text" id="u-username" required />
-      <label>Full Name</label><input type="text" id="u-name" required />
-      <label>Password</label><input type="password" id="u-password" required minlength="6" />
-      <label>Email (for alerts &amp; reports)</label><input type="email" id="u-email" placeholder="user@example.com" />
-      <label>Phone (for SMS alerts)</label><input type="text" id="u-phone" placeholder="+91XXXXXXXXXX" />
-      <label>Role</label>
+      <label>${t("admin.users.table.username")}</label><input type="text" id="u-username" required />
+      <label>${t("admin.users.modal.fullName")}</label><input type="text" id="u-name" required />
+      <label>${t("admin.users.modal.password")}</label><input type="password" id="u-password" required minlength="6" />
+      <label>${t("admin.users.modal.email")}</label><input type="email" id="u-email" placeholder="user@example.com" />
+      <label>${t("admin.users.modal.phone")}</label><input type="text" id="u-phone" placeholder="+91XXXXXXXXXX" />
+      <label>${t("admin.users.modal.role")}</label>
       <select id="u-role"><option value="Viewer">Viewer</option><option value="Supervisor">Supervisor</option><option value="Admin">Admin</option></select>
-      <label>Assigned Coaches — this user will ONLY see these coaches</label>
+      <label>${t("admin.users.modal.assignedCoaches")}</label>
       ${coachCheckboxListHtml([])}
       <p class="modal-error" id="user-form-error"></p>
       <div class="modal-actions">
-        <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="btn-primary">Create User</button>
+        <button type="button" class="btn-secondary" onclick="closeModal()">${t("common.cancel")}</button>
+        <button type="submit" class="btn-primary">${t("admin.users.modal.createBtn")}</button>
       </div>
     </form>
   `);
@@ -1030,7 +1032,7 @@ document.getElementById("add-user-btn").addEventListener("click", () => {
         }),
       });
       closeModal();
-      showToast("User created", "success");
+      showToast(t("admin.users.toast.created"), "success");
       loadAdminUsers();
     } catch (err) { document.getElementById("user-form-error").textContent = err.message; }
   });
@@ -1041,24 +1043,24 @@ async function editUser(id) {
   const u = users.find((x) => x.id === id);
   if (!u) return;
   openModal(`
-    <h3>Edit User — ${u.username}</h3>
+    <h3>${t("admin.users.modal.editTitle", { username: u.username })}</h3>
     <form id="user-edit-form">
-      <label>Full Name</label><input type="text" id="ue-name" value="${u.name}" required />
-      <label>Email (for alerts &amp; reports)</label><input type="email" id="ue-email" value="${u.email || ""}" placeholder="user@example.com" />
-      <label>Phone (for SMS alerts)</label><input type="text" id="ue-phone" value="${u.phone || ""}" placeholder="+91XXXXXXXXXX" />
-      <label>Role</label>
+      <label>${t("admin.users.modal.fullName")}</label><input type="text" id="ue-name" value="${u.name}" required />
+      <label>${t("admin.users.modal.email")}</label><input type="email" id="ue-email" value="${u.email || ""}" placeholder="user@example.com" />
+      <label>${t("admin.users.modal.phone")}</label><input type="text" id="ue-phone" value="${u.phone || ""}" placeholder="+91XXXXXXXXXX" />
+      <label>${t("admin.users.modal.role")}</label>
       <select id="ue-role">
         <option value="Viewer" ${u.role === "Viewer" ? "selected" : ""}>Viewer</option>
         <option value="Supervisor" ${u.role === "Supervisor" ? "selected" : ""}>Supervisor</option>
         <option value="Admin" ${u.role === "Admin" ? "selected" : ""}>Admin</option>
       </select>
-      <label>New Password (leave blank to keep unchanged)</label><input type="password" id="ue-password" minlength="6" />
-      <label>Assigned Coaches — this user will ONLY see these coaches</label>
+      <label>${t("admin.users.modal.newPassword")}</label><input type="password" id="ue-password" minlength="6" />
+      <label>${t("admin.users.modal.assignedCoaches")}</label>
       ${coachCheckboxListHtml(u.assigned_coaches)}
       <p class="modal-error" id="user-edit-error"></p>
       <div class="modal-actions">
-        <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="btn-primary">Save Changes</button>
+        <button type="button" class="btn-secondary" onclick="closeModal()">${t("common.cancel")}</button>
+        <button type="submit" class="btn-primary">${t("common.saveChanges")}</button>
       </div>
     </form>
   `);
@@ -1076,7 +1078,7 @@ async function editUser(id) {
       if (pw) payload.password = pw;
       await apiFetch(`/admin/users/${id}`, { method: "PUT", body: JSON.stringify(payload) });
       closeModal();
-      showToast("User updated", "success");
+      showToast(t("admin.users.toast.updated"), "success");
       loadAdminUsers();
     } catch (err) { document.getElementById("user-edit-error").textContent = err.message; }
   });
@@ -1084,10 +1086,10 @@ async function editUser(id) {
 window.editUser = editUser;
 
 async function deleteUser(id) {
-  if (!confirm("Delete this user? This cannot be undone.")) return;
+  if (!confirm(t("admin.users.confirmDelete"))) return;
   try {
     await apiFetch(`/admin/users/${id}`, { method: "DELETE" });
-    showToast("User deleted", "success");
+    showToast(t("admin.users.toast.deleted"), "success");
     loadAdminUsers();
   } catch (err) { showToast(err.message, "error"); }
 }
@@ -1100,10 +1102,10 @@ async function loadAdminCoaches() {
       <td>${c.coach_number}</td>
       <td>${c.rake_name}</td>
       <td>${c.coach_type}</td>
-      <td>${c.status}</td>
+      <td>${t("admin.coaches.status." + c.status) }</td>
       <td>
-        <button class="btn-small" onclick="editCoach(${c.id})">Edit</button>
-        <button class="btn-danger" onclick="deleteCoach(${c.id})">Delete</button>
+        <button class="btn-small" onclick="editCoach(${c.id})">${t("common.edit")}</button>
+        <button class="btn-danger" onclick="deleteCoach(${c.id})">${t("common.delete")}</button>
       </td>
     </tr>
   `).join("");
@@ -1113,15 +1115,15 @@ document.getElementById("add-coach-btn").addEventListener("click", async () => {
   const rakes = await apiFetch("/rakes");
   const rakeOptions = rakes.map((r) => `<option value="${r.id}">${r.rake_name} (${r.rake_type})</option>`).join("");
   openModal(`
-    <h3>Add Coach</h3>
+    <h3>${t("admin.coaches.modal.addTitle")}</h3>
     <form id="coach-form">
-      <label>Coach Number</label><input type="text" id="c-number" required placeholder="e.g. LHB-50231" />
-      <label>Rake</label><select id="c-rake">${rakeOptions}</select>
-      <label>Coach Type</label><input type="text" id="c-type" required placeholder="e.g. AC 3-Tier" />
+      <label>${t("admin.coaches.modal.coachNumber")}</label><input type="text" id="c-number" required placeholder="${t("rakes.modal.egCoachNumber")}" />
+      <label>${t("admin.coaches.modal.rake")}</label><select id="c-rake">${rakeOptions}</select>
+      <label>${t("admin.coaches.modal.coachType")}</label><input type="text" id="c-type" required placeholder="${t("rakes.modal.egCoachType")}" />
       <p class="modal-error" id="coach-form-error"></p>
       <div class="modal-actions">
-        <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="btn-primary">Create Coach (auto-creates 8 axles)</button>
+        <button type="button" class="btn-secondary" onclick="closeModal()">${t("common.cancel")}</button>
+        <button type="submit" class="btn-primary">${t("admin.coaches.modal.createBtn")}</button>
       </div>
     </form>
   `);
@@ -1137,7 +1139,7 @@ document.getElementById("add-coach-btn").addEventListener("click", async () => {
         }),
       });
       closeModal();
-      showToast("Coach created with 8 axles", "success");
+      showToast(t("admin.coaches.toast.created"), "success");
       COACHES = await apiFetch("/coaches");
       populateCoachSelectors();
       loadAdminCoaches();
@@ -1150,19 +1152,19 @@ async function editCoach(id) {
   const c = coaches.find((x) => x.id === id);
   if (!c) return;
   openModal(`
-    <h3>Edit Coach — ${c.coach_number}</h3>
+    <h3>${t("admin.coaches.modal.editTitle", { number: c.coach_number })}</h3>
     <form id="coach-edit-form">
-      <label>Coach Type</label><input type="text" id="ce-type" value="${c.coach_type}" required />
-      <label>Status</label>
+      <label>${t("admin.coaches.modal.coachType")}</label><input type="text" id="ce-type" value="${c.coach_type}" required />
+      <label>${t("admin.coaches.modal.status")}</label>
       <select id="ce-status">
-        <option value="Active" ${c.status === "Active" ? "selected" : ""}>Active</option>
-        <option value="Maintenance" ${c.status === "Maintenance" ? "selected" : ""}>Maintenance</option>
-        <option value="Withdrawn" ${c.status === "Withdrawn" ? "selected" : ""}>Withdrawn</option>
+        <option value="Active" ${c.status === "Active" ? "selected" : ""}>${t("admin.coaches.status.Active")}</option>
+        <option value="Maintenance" ${c.status === "Maintenance" ? "selected" : ""}>${t("admin.coaches.status.Maintenance")}</option>
+        <option value="Withdrawn" ${c.status === "Withdrawn" ? "selected" : ""}>${t("admin.coaches.status.Withdrawn")}</option>
       </select>
       <p class="modal-error" id="coach-edit-error"></p>
       <div class="modal-actions">
-        <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
-        <button type="submit" class="btn-primary">Save Changes</button>
+        <button type="button" class="btn-secondary" onclick="closeModal()">${t("common.cancel")}</button>
+        <button type="submit" class="btn-primary">${t("common.saveChanges")}</button>
       </div>
     </form>
   `);
@@ -1174,7 +1176,7 @@ async function editCoach(id) {
         body: JSON.stringify({ coach_type: document.getElementById("ce-type").value.trim(), status: document.getElementById("ce-status").value }),
       });
       closeModal();
-      showToast("Coach updated", "success");
+      showToast(t("admin.coaches.toast.updated"), "success");
       COACHES = await apiFetch("/coaches");
       populateCoachSelectors();
       loadAdminCoaches();
@@ -1184,10 +1186,10 @@ async function editCoach(id) {
 window.editCoach = editCoach;
 
 async function deleteCoach(id) {
-  if (!confirm("Delete this coach and all its axle/PICCU data? This cannot be undone.")) return;
+  if (!confirm(t("admin.coaches.confirmDelete"))) return;
   try {
     await apiFetch(`/admin/coaches/${id}`, { method: "DELETE" });
-    showToast("Coach deleted", "success");
+    showToast(t("admin.coaches.toast.deleted"), "success");
     COACHES = await apiFetch("/coaches");
     populateCoachSelectors();
     loadAdminCoaches();
@@ -1197,14 +1199,14 @@ window.deleteCoach = deleteCoach;
 
 // ---- Alert Thresholds + Log Interval (combined) ----
 async function loadAdminThresholds() {
-  const t = await apiFetch("/admin/thresholds");
-  document.getElementById("th-vib-yellow").value = t.vibration.yellow;
-  document.getElementById("th-vib-orange").value = t.vibration.orange;
-  document.getElementById("th-vib-red").value = t.vibration.red;
-  document.getElementById("th-temp-yellow").value = t.temperature.yellow;
-  document.getElementById("th-temp-orange").value = t.temperature.orange;
-  document.getElementById("th-temp-red").value = t.temperature.red;
-  document.getElementById("log-interval-input").value = t.log_interval_seconds;
+  const th = await apiFetch("/admin/thresholds");
+  document.getElementById("th-vib-yellow").value = th.vibration.yellow;
+  document.getElementById("th-vib-orange").value = th.vibration.orange;
+  document.getElementById("th-vib-red").value = th.vibration.red;
+  document.getElementById("th-temp-yellow").value = th.temperature.yellow;
+  document.getElementById("th-temp-orange").value = th.temperature.orange;
+  document.getElementById("th-temp-red").value = th.temperature.red;
+  document.getElementById("log-interval-input").value = th.log_interval_seconds;
 }
 
 document.getElementById("thresholds-form").addEventListener("submit", async (e) => {
@@ -1226,7 +1228,7 @@ document.getElementById("thresholds-form").addEventListener("submit", async (e) 
         log_interval_seconds: Number(document.getElementById("log-interval-input").value),
       }),
     });
-    showToast("Thresholds & logging interval updated", "success");
+    showToast(t("admin.thresholds.toast.updated"), "success");
   } catch (err) { showToast(err.message, "error"); }
 });
 
@@ -1241,14 +1243,14 @@ async function loadAdminNotifications() {
   document.getElementById("smtp-secure").checked = n.smtp.secure;
   document.getElementById("smtp-user").value = n.smtp.user;
   document.getElementById("smtp-pass").value = "";
-  document.getElementById("smtp-pass").placeholder = n.smtp.pass ? "•••••••• (unchanged)" : "Leave blank to keep unchanged";
+  document.getElementById("smtp-pass").placeholder = n.smtp.pass ? t("admin.notifications.smtp.passUnchanged") : t("admin.notifications.smtp.passBlank");
   document.getElementById("smtp-from-name").value = n.smtp.from_name;
   document.getElementById("smtp-from-email").value = n.smtp.from_email;
 
   document.getElementById("sms-enabled").checked = n.sms.enabled;
   document.getElementById("sms-provider").value = n.sms.provider;
   document.getElementById("sms-api-key").value = "";
-  document.getElementById("sms-api-key").placeholder = n.sms.api_key ? "•••••••• (unchanged)" : "Leave blank to keep unchanged";
+  document.getElementById("sms-api-key").placeholder = n.sms.api_key ? t("admin.notifications.smtp.passUnchanged") : t("admin.notifications.smtp.passBlank");
   document.getElementById("sms-sender-id").value = n.sms.sender_id;
 }
 
@@ -1259,7 +1261,7 @@ document.getElementById("daily-report-form").addEventListener("submit", async (e
       method: "PUT",
       body: JSON.stringify({ daily_report_time: document.getElementById("daily-report-time-input").value }),
     });
-    showToast("Daily report time updated", "success");
+    showToast(t("admin.notifications.toast.dailyReportUpdated"), "success");
   } catch (err) { showToast(err.message, "error"); }
 });
 
@@ -1281,7 +1283,7 @@ document.getElementById("smtp-form").addEventListener("submit", async (e) => {
         },
       }),
     });
-    showToast("SMTP settings saved", "success");
+    showToast(t("admin.notifications.smtp.toastSaved"), "success");
     loadAdminNotifications();
   } catch (err) { showToast(err.message, "error"); }
 });
@@ -1300,7 +1302,7 @@ document.getElementById("sms-form").addEventListener("submit", async (e) => {
         },
       }),
     });
-    showToast("SMS settings saved", "success");
+    showToast(t("admin.notifications.sms.toastSaved"), "success");
     loadAdminNotifications();
   } catch (err) { showToast(err.message, "error"); }
 });
@@ -1308,14 +1310,14 @@ document.getElementById("sms-form").addEventListener("submit", async (e) => {
 document.getElementById("send-test-email-btn").addEventListener("click", async () => {
   const to = document.getElementById("test-email-to").value.trim();
   const resultEl = document.getElementById("test-email-result");
-  if (!to) { resultEl.style.color = "var(--red)"; resultEl.textContent = "Enter a recipient email address."; return; }
-  resultEl.textContent = "Sending...";
+  if (!to) { resultEl.style.color = "var(--red)"; resultEl.textContent = t("admin.notifications.smtp.enterRecipient"); return; }
+  resultEl.textContent = t("admin.notifications.smtp.sending");
   resultEl.style.color = "";
   try {
     const log = await apiFetch("/admin/notifications/test-email", { method: "POST", body: JSON.stringify({ to }) });
-    if (log.status === "sent") { resultEl.style.color = "var(--green)"; resultEl.textContent = "Test email sent successfully."; }
-    else if (log.status === "simulated") { resultEl.style.color = "var(--orange)"; resultEl.textContent = "Not sent — " + log.detail; }
-    else { resultEl.style.color = "var(--red)"; resultEl.textContent = "Failed: " + log.detail; }
+    if (log.status === "sent") { resultEl.style.color = "var(--green)"; resultEl.textContent = t("admin.notifications.smtp.testSentSuccess"); }
+    else if (log.status === "simulated") { resultEl.style.color = "var(--orange)"; resultEl.textContent = t("admin.notifications.smtp.notSent", { detail: log.detail }); }
+    else { resultEl.style.color = "var(--red)"; resultEl.textContent = t("admin.notifications.smtp.failed", { detail: log.detail }); }
   } catch (err) { resultEl.style.color = "var(--red)"; resultEl.textContent = err.message; }
 });
 
@@ -1346,8 +1348,11 @@ document.getElementById("data-source-form").addEventListener("submit", async (e)
       }),
     });
     resultEl.style.color = "var(--green)";
-    resultEl.textContent = `Saved — data source is now "${res.data_source === "live" ? "Live Hardware Mode" : "Demo Mode"}" (poll every ${res.poll_interval_seconds}s).`;
-    showToast("Data source updated", "success");
+    resultEl.textContent = t("settings.dataSource.savedMessage", {
+      mode: res.data_source === "live" ? t("settings.dataSource.optionLive") : t("settings.dataSource.optionSimulated"),
+      interval: res.poll_interval_seconds,
+    });
+    showToast(t("settings.dataSource.toastUpdated"), "success");
   } catch (err) {
     resultEl.style.color = "var(--red)";
     resultEl.textContent = err.message;
@@ -1359,14 +1364,14 @@ function renderCoachHardwareTable(coachHw) {
   tbody.innerHTML = coachHw.map((c) => `
     <tr data-coach-id="${c.id}">
       <td><b>${c.coach_number}</b></td>
-      <td><input type="text" class="ch-obcms-ip" value="${c.hardware.obcms_master_ip}" placeholder="e.g. 10.10.10.11" style="width:140px;" /></td>
+      <td><input type="text" class="ch-obcms-ip" value="${c.hardware.obcms_master_ip}" placeholder="${t("settings.connectivity.egObcmsIp")}" style="width:140px;" /></td>
       <td><input type="number" class="ch-obcms-port" value="${c.hardware.obcms_master_port}" style="width:80px;" /></td>
-      <td><input type="text" class="ch-piccu-ip" value="${c.hardware.piccu_master_ip}" placeholder="e.g. 10.10.10.12" style="width:140px;" /></td>
+      <td><input type="text" class="ch-piccu-ip" value="${c.hardware.piccu_master_ip}" placeholder="${t("settings.connectivity.egPiccuIp")}" style="width:140px;" /></td>
       <td><input type="number" class="ch-piccu-port" value="${c.hardware.piccu_master_port}" style="width:80px;" /></td>
-      <td><input type="text" class="ch-rut200-ip" value="${c.hardware.rut200_ip}" placeholder="e.g. 10.10.10.1" style="width:140px;" /></td>
-      <td><button class="btn-small" type="button" onclick="saveCoachHardware(${c.id})">Save</button></td>
+      <td><input type="text" class="ch-rut200-ip" value="${c.hardware.rut200_ip}" placeholder="${t("settings.connectivity.egRouterIp")}" style="width:140px;" /></td>
+      <td><button class="btn-small" type="button" onclick="saveCoachHardware(${c.id})">${t("settings.connectivity.saveBtn")}</button></td>
     </tr>
-  `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">No coaches yet.</td></tr>`;
+  `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">${t("settings.connectivity.noCoaches")}</td></tr>`;
 }
 
 async function saveCoachHardware(coachId) {
@@ -1383,7 +1388,7 @@ async function saveCoachHardware(coachId) {
         rut200_ip: row.querySelector(".ch-rut200-ip").value.trim(),
       }),
     });
-    showToast("Hardware connectivity saved", "success");
+    showToast(t("settings.connectivity.toastSaved"), "success");
   } catch (err) {
     showToast(err.message, "error");
   }

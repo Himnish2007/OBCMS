@@ -14,17 +14,21 @@
 <div id="login-screen" class="login-screen">
   <div class="login-card">
     <img src="img/logo.png" alt="Himnish" class="login-logo" />
-    <h1>OBCMS &amp; PICCU Monitoring</h1>
-    <p class="muted">Himnish Limited — Indian Railways Condition Monitoring Platform</p>
+    <h1 data-i18n="login.heading">OBCMS &amp; PICCU Monitoring</h1>
+    <p class="muted" data-i18n="login.subtitle">Himnish Limited — Indian Railways Condition Monitoring Platform</p>
     <form id="login-form">
-      <label>Username</label>
+      <label data-i18n="login.username">Username</label>
       <input type="text" id="login-username" value="admin" required />
-      <label>Password</label>
+      <label data-i18n="login.password">Password</label>
       <input type="password" id="login-password" value="Himnish@123" required />
-      <button type="submit">Sign In</button>
+      <button type="submit" data-i18n="login.signin">Sign In</button>
       <p id="login-error" class="error-text"></p>
     </form>
-    <p class="demo-hint">Demo logins — admin / supervisor / viewer (password: Himnish@123)</p>
+    <p class="demo-hint" data-i18n="login.hint">Sample logins — admin / supervisor / viewer (password: Himnish@123)</p>
+    <div class="lang-switch" style="margin-top:0.8rem;">
+      <button type="button" class="lang-btn active" data-lang="en">EN</button>
+      <button type="button" class="lang-btn" data-lang="hi">हिं</button>
+    </div>
   </div>
 </div>
 
@@ -43,66 +47,79 @@
       <img src="img/logo.png" alt="Himnish" />
       <div>
         <div class="brand-name">HIMNISH</div>
-        <div class="brand-sub">Railway IoT Platform</div>
+        <div class="brand-sub" data-i18n="sidebar.brandSub">Railway IoT Platform</div>
       </div>
     </div>
     <nav class="nav">
-      <button class="nav-item active" data-view="overview">Fleet Overview</button>
-      <button class="nav-item" data-view="obcms">OBCMS</button>
-      <button class="nav-item" data-view="piccu">PICCU</button>
-      <button class="nav-item" data-view="health">Health</button>
-      <button class="nav-item" data-view="prediction">Prediction</button>
-      <button class="nav-item" data-view="analytics">Analytics</button>
-      <button class="nav-item" data-view="alerts">Alerts</button>
-      <button class="nav-item" data-view="reports">Reports</button>
-      <button class="nav-item" data-view="rakes">Rake Management</button>
-      <button class="nav-item admin-only" data-view="admin">Admin</button>
-      <button class="nav-item admin-only" data-view="settings">Settings</button>
+      <button class="nav-item active" data-view="overview" data-i18n="nav.overview">Fleet Overview</button>
+      <button class="nav-item" data-view="obcms" data-i18n="nav.obcms">OBCMS</button>
+      <button class="nav-item" data-view="piccu" data-i18n="nav.piccu">PICCU</button>
+      <button class="nav-item" data-view="health" data-i18n="nav.health">Health</button>
+      <button class="nav-item" data-view="prediction" data-i18n="nav.prediction">Prediction</button>
+      <button class="nav-item" data-view="analytics" data-i18n="nav.analytics">Analytics</button>
+      <button class="nav-item" data-view="alerts" data-i18n="nav.alerts">Alerts</button>
+      <button class="nav-item" data-view="reports" data-i18n="nav.reports">Reports</button>
+      <button class="nav-item" data-view="rakes" data-i18n="nav.rakes">Rake Management</button>
+      <button class="nav-item admin-only" data-view="admin" data-i18n="nav.admin">Admin</button>
+      <button class="nav-item admin-only" data-view="settings" data-i18n="nav.settings">Settings</button>
     </nav>
     <div class="sidebar-footer">
+      <div class="lang-switch">
+        <span class="lang-switch-label" data-i18n="sidebar.language">Language</span>
+        <button type="button" class="lang-btn active" data-lang="en">EN</button>
+        <button type="button" class="lang-btn" data-lang="hi">हिं</button>
+      </div>
       <div id="user-name" class="user-name"></div>
-      <button id="logout-btn" class="logout-btn">Logout</button>
+      <button id="logout-btn" class="logout-btn" data-i18n="sidebar.logout">Logout</button>
     </div>
   </aside>
 
   <main class="main">
     <header class="topbar">
       <div>
-        <div class="topbar-title" id="view-title">Fleet Overview</div>
-        <div class="topbar-sub">Live condition monitoring across the coach fleet</div>
+        <div class="topbar-title" id="view-title" data-i18n="nav.overview">Fleet Overview</div>
+        <div class="topbar-sub" data-i18n="topbar.subtitle">Live condition monitoring across the coach fleet</div>
       </div>
       <div class="topbar-status">
-        <span class="dot pulse"></span> Live · DEMO_MODE
+        <span class="dot pulse"></span> <span data-i18n="topbar.live">Live</span>
       </div>
     </header>
 
     <!-- ===================== FLEET OVERVIEW ===================== -->
     <section id="view-overview" class="view">
       <div class="kpi-grid">
-        <div class="kpi-card"><div class="kpi-label">Total Coaches</div><div class="kpi-value" id="kpi-coaches">-</div></div>
-        <div class="kpi-card"><div class="kpi-label">Total Rakes</div><div class="kpi-value" id="kpi-rakes">-</div></div>
-        <div class="kpi-card alert"><div class="kpi-label">Open Alerts</div><div class="kpi-value" id="kpi-alerts">-</div></div>
-        <div class="kpi-card warn"><div class="kpi-label">PICCU Faults</div><div class="kpi-value" id="kpi-piccu">-</div></div>
+        <div class="kpi-card"><div class="kpi-label" data-i18n="overview.kpi.totalCoaches">Total Coaches</div><div class="kpi-value" id="kpi-coaches">-</div></div>
+        <div class="kpi-card"><div class="kpi-label" data-i18n="overview.kpi.totalRakes">Total Rakes</div><div class="kpi-value" id="kpi-rakes">-</div></div>
+        <div class="kpi-card alert"><div class="kpi-label" data-i18n="overview.kpi.openAlerts">Open Alerts</div><div class="kpi-value" id="kpi-alerts">-</div></div>
+        <div class="kpi-card warn"><div class="kpi-label" data-i18n="overview.kpi.piccuFaults">PICCU Faults</div><div class="kpi-value" id="kpi-piccu">-</div></div>
       </div>
 
       <div class="band-strip">
-        <div class="band-chip green">GREEN <span id="band-green">0</span></div>
-        <div class="band-chip yellow">YELLOW <span id="band-yellow">0</span></div>
-        <div class="band-chip orange">ORANGE <span id="band-orange">0</span></div>
-        <div class="band-chip red">RED <span id="band-red">0</span></div>
+        <div class="band-chip green"><span data-i18n="common.band.GREEN">GREEN</span> <span id="band-green">0</span></div>
+        <div class="band-chip yellow"><span data-i18n="common.band.YELLOW">YELLOW</span> <span id="band-yellow">0</span></div>
+        <div class="band-chip orange"><span data-i18n="common.band.ORANGE">ORANGE</span> <span id="band-orange">0</span></div>
+        <div class="band-chip red"><span data-i18n="common.band.RED">RED</span> <span id="band-red">0</span></div>
       </div>
 
       <div class="card">
-        <div class="card-title">Fleet — Coach Wise Status</div>
+        <div class="card-title" data-i18n="overview.card.fleetStatus">Fleet — Coach Wise Status</div>
         <div class="coach-selector">
-          <label>Search / Select Coach:</label>
-          <input type="text" id="overview-coach-search" placeholder="Type coach number..." list="overview-coach-datalist" />
+          <label data-i18n="common.searchSelectCoach">Search / Select Coach:</label>
+          <input type="text" id="overview-coach-search" data-i18n-placeholder="common.typeCoachNumber" placeholder="Type coach number..." list="overview-coach-datalist" />
           <datalist id="overview-coach-datalist"></datalist>
-          <select id="overview-coach-select"><option value="">All Coaches</option></select>
+          <select id="overview-coach-select"><option value="" data-i18n="common.allCoaches">All Coaches</option></select>
         </div>
         <table class="table" id="fleet-table">
           <thead>
-            <tr><th>Coach No.</th><th>Type</th><th>Rake</th><th>Health Band</th><th>Open Alerts</th><th>PICCU Faults</th><th></th></tr>
+            <tr>
+              <th data-i18n="overview.table.coachNo">Coach No.</th>
+              <th data-i18n="overview.table.type">Type</th>
+              <th data-i18n="overview.table.rake">Rake</th>
+              <th data-i18n="overview.table.healthBand">Health Band</th>
+              <th data-i18n="overview.table.openAlerts">Open Alerts</th>
+              <th data-i18n="overview.table.piccuFaults">PICCU Faults</th>
+              <th></th>
+            </tr>
           </thead>
           <tbody id="fleet-table-body"></tbody>
         </table>
@@ -112,20 +129,28 @@
     <!-- ===================== OBCMS ===================== -->
     <section id="view-obcms" class="view hidden">
       <div class="coach-selector">
-        <label>Select Coach:</label>
-        <input type="text" id="obcms-coach-search" placeholder="Type coach number..." list="obcms-coach-datalist" />
+        <label data-i18n="common.selectCoach">Select Coach:</label>
+        <input type="text" id="obcms-coach-search" data-i18n-placeholder="common.typeCoachNumber" placeholder="Type coach number..." list="obcms-coach-datalist" />
         <datalist id="obcms-coach-datalist"></datalist>
         <select id="obcms-coach-select"></select>
       </div>
       <div class="sensor-grid" id="obcms-sensor-grid"></div>
       <div class="card">
-        <div class="card-title">Vibration &amp; Temperature Trend — Selected Axle</div>
+        <div class="card-title" data-i18n="obcms.chart.title">Vibration &amp; Temperature Trend — Selected Axle</div>
         <canvas id="obcms-chart" height="90"></canvas>
       </div>
       <div class="card">
-        <div class="card-title">Recent Alerts — This Coach</div>
+        <div class="card-title" data-i18n="obcms.alerts.title">Recent Alerts — This Coach</div>
         <table class="table" id="obcms-alerts-table">
-          <thead><tr><th>Time</th><th>Axle</th><th>Severity</th><th>Message</th><th>Status</th></tr></thead>
+          <thead>
+            <tr>
+              <th data-i18n="obcms.table.time">Time</th>
+              <th data-i18n="obcms.table.axle">Axle</th>
+              <th data-i18n="obcms.table.severity">Severity</th>
+              <th data-i18n="obcms.table.message">Message</th>
+              <th data-i18n="obcms.table.status">Status</th>
+            </tr>
+          </thead>
           <tbody id="obcms-alerts-body"></tbody>
         </table>
       </div>
@@ -134,17 +159,17 @@
     <!-- ===================== PICCU ===================== -->
     <section id="view-piccu" class="view hidden">
       <div class="coach-selector">
-        <label>Select Coach:</label>
-        <input type="text" id="piccu-coach-search" placeholder="Type coach number..." list="piccu-coach-datalist" />
+        <label data-i18n="common.selectCoach">Select Coach:</label>
+        <input type="text" id="piccu-coach-search" data-i18n-placeholder="common.typeCoachNumber" placeholder="Type coach number..." list="piccu-coach-datalist" />
         <datalist id="piccu-coach-datalist"></datalist>
         <select id="piccu-coach-select"></select>
       </div>
       <div class="card">
-        <div class="card-title">Integrated Sub-System Status</div>
+        <div class="card-title" data-i18n="piccu.card.subsystems">Integrated Sub-System Status</div>
         <div class="piccu-grid" id="piccu-systems-grid"></div>
       </div>
       <div class="card">
-        <div class="card-title">SBC Telemetry (HVAC / Battery / Network)</div>
+        <div class="card-title" data-i18n="piccu.card.telemetry">SBC Telemetry (HVAC / Battery / Network)</div>
         <div class="telemetry-grid" id="piccu-telemetry-grid"></div>
       </div>
     </section>
@@ -152,16 +177,32 @@
     <!-- ===================== HEALTH ===================== -->
     <section id="view-health" class="view hidden">
       <div class="card">
-        <div class="card-title">Fleet Health Matrix — 8-Axle Heatmap per Coach</div>
+        <div class="card-title" data-i18n="health.card.matrix">Fleet Health Matrix — 8-Axle Heatmap per Coach</div>
         <table class="table" id="health-table">
-          <thead><tr><th>Coach</th><th>Rake</th><th>Health Score</th><th>Axle Heatmap (1–8)</th></tr></thead>
+          <thead>
+            <tr>
+              <th data-i18n="health.table.coach">Coach</th>
+              <th data-i18n="health.table.rake">Rake</th>
+              <th data-i18n="health.table.healthScore">Health Score</th>
+              <th data-i18n="health.table.heatmap">Axle Heatmap (1–8)</th>
+            </tr>
+          </thead>
           <tbody id="health-table-body"></tbody>
         </table>
       </div>
       <div class="card">
-        <div class="card-title">Worst Performing Axles (Fleet-Wide)</div>
+        <div class="card-title" data-i18n="health.card.worstAxles">Worst Performing Axles (Fleet-Wide)</div>
         <table class="table" id="worst-axles-table">
-          <thead><tr><th>Coach</th><th>Axle</th><th>Band</th><th>Vibration (g)</th><th>Temp (°C)</th><th>Last Update</th></tr></thead>
+          <thead>
+            <tr>
+              <th data-i18n="health.table.coach">Coach</th>
+              <th data-i18n="health.table.axle">Axle</th>
+              <th data-i18n="health.table.band">Band</th>
+              <th data-i18n="health.table.vibration">Vibration (g)</th>
+              <th data-i18n="health.table.temp">Temp (°C)</th>
+              <th data-i18n="health.table.lastUpdate">Last Update</th>
+            </tr>
+          </thead>
           <tbody id="worst-axles-body"></tbody>
         </table>
       </div>
@@ -171,15 +212,25 @@
     <section id="view-prediction" class="view hidden">
       <div class="info-banner" id="prediction-note"></div>
       <div class="card">
-        <div class="card-title">Predicted Time to Next Threshold Breach</div>
+        <div class="card-title" data-i18n="prediction.card.title">Predicted Time to Next Threshold Breach</div>
         <div class="coach-selector">
-          <label>Search / Select Coach:</label>
-          <input type="text" id="prediction-coach-search" placeholder="Type coach number..." list="prediction-coach-datalist" />
+          <label data-i18n="common.searchSelectCoach">Search / Select Coach:</label>
+          <input type="text" id="prediction-coach-search" data-i18n-placeholder="common.typeCoachNumber" placeholder="Type coach number..." list="prediction-coach-datalist" />
           <datalist id="prediction-coach-datalist"></datalist>
-          <select id="prediction-coach-select"><option value="">All Coaches</option></select>
+          <select id="prediction-coach-select"><option value="" data-i18n="common.allCoaches">All Coaches</option></select>
         </div>
         <table class="table" id="prediction-table">
-          <thead><tr><th>Coach</th><th>Axle</th><th>Current Band</th><th>Vibration Trend</th><th>Temp Trend</th><th>Driven By</th><th>Est. Time to Breach</th></tr></thead>
+          <thead>
+            <tr>
+              <th data-i18n="prediction.table.coach">Coach</th>
+              <th data-i18n="prediction.table.axle">Axle</th>
+              <th data-i18n="prediction.table.currentBand">Current Band</th>
+              <th data-i18n="prediction.table.vibrationTrend">Vibration Trend</th>
+              <th data-i18n="prediction.table.tempTrend">Temp Trend</th>
+              <th data-i18n="prediction.table.drivenBy">Driven By</th>
+              <th data-i18n="prediction.table.estTimeToBreach">Est. Time to Breach</th>
+            </tr>
+          </thead>
           <tbody id="prediction-table-body"></tbody>
         </table>
       </div>
@@ -189,24 +240,24 @@
     <section id="view-analytics" class="view hidden">
       <div class="analytics-grid">
         <div class="card">
-          <div class="card-title">Fleet-Wide Condition Band Distribution</div>
+          <div class="card-title" data-i18n="analytics.chart.bandDist">Fleet-Wide Condition Band Distribution</div>
           <canvas id="chart-band-dist" height="180"></canvas>
         </div>
         <div class="card">
-          <div class="card-title">Top Alert-Prone Coaches</div>
+          <div class="card-title" data-i18n="analytics.chart.topAlerts">Top Alert-Prone Coaches</div>
           <canvas id="chart-top-alerts" height="180"></canvas>
         </div>
         <div class="card" style="grid-column: 1 / -1;">
-          <div class="card-title">Alert Trend (Recent)</div>
+          <div class="card-title" data-i18n="analytics.chart.alertTrend">Alert Trend (Recent)</div>
           <canvas id="chart-alert-trend" height="140"></canvas>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-title">Per-Coach Detailed Analysis</div>
+        <div class="card-title" data-i18n="analytics.card.perCoach">Per-Coach Detailed Analysis</div>
         <div class="coach-selector">
-          <label>Search / Select Coach:</label>
-          <input type="text" id="analytics-coach-search" placeholder="Type coach number..." list="analytics-coach-datalist" />
+          <label data-i18n="common.searchSelectCoach">Search / Select Coach:</label>
+          <input type="text" id="analytics-coach-search" data-i18n-placeholder="common.typeCoachNumber" placeholder="Type coach number..." list="analytics-coach-datalist" />
           <datalist id="analytics-coach-datalist"></datalist>
           <select id="analytics-coach-select"></select>
         </div>
@@ -218,15 +269,25 @@
     <section id="view-alerts" class="view hidden">
       <div class="card">
         <div class="card-title-row">
-          <div class="card-title">All Alerts</div>
+          <div class="card-title" data-i18n="alerts.card.title">All Alerts</div>
           <div class="filter-tabs">
-            <button class="filter-tab active" data-filter="open">Open</button>
-            <button class="filter-tab" data-filter="acknowledged">Acknowledged</button>
-            <button class="filter-tab" data-filter="all">All</button>
+            <button class="filter-tab active" data-filter="open" data-i18n="alerts.filter.open">Open</button>
+            <button class="filter-tab" data-filter="acknowledged" data-i18n="alerts.filter.acknowledged">Acknowledged</button>
+            <button class="filter-tab" data-filter="all" data-i18n="alerts.filter.all">All</button>
           </div>
         </div>
         <table class="table" id="alerts-table">
-          <thead><tr><th>Time</th><th>Coach</th><th>Axle</th><th>Severity</th><th>Message</th><th>Status</th><th></th></tr></thead>
+          <thead>
+            <tr>
+              <th data-i18n="alerts.table.time">Time</th>
+              <th data-i18n="alerts.table.coach">Coach</th>
+              <th data-i18n="alerts.table.axle">Axle</th>
+              <th data-i18n="alerts.table.severity">Severity</th>
+              <th data-i18n="alerts.table.message">Message</th>
+              <th data-i18n="alerts.table.status">Status</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody id="alerts-table-body"></tbody>
         </table>
       </div>
@@ -236,32 +297,32 @@
     <section id="view-reports" class="view hidden">
       <div class="kpi-grid" id="reports-summary-grid"></div>
       <div class="card">
-        <div class="card-title">Export Data</div>
+        <div class="card-title" data-i18n="reports.card.export">Export Data</div>
         <div class="report-actions">
-          <label>Filter by coach (optional):</label>
-          <input type="text" id="reports-coach-search" placeholder="Type coach number..." list="reports-coach-datalist" />
+          <label data-i18n="reports.filterByCoach">Filter by coach (optional):</label>
+          <input type="text" id="reports-coach-search" data-i18n-placeholder="common.typeCoachNumber" placeholder="Type coach number..." list="reports-coach-datalist" />
           <datalist id="reports-coach-datalist"></datalist>
-          <select id="reports-coach-select"><option value="">All My Coaches</option></select>
+          <select id="reports-coach-select"><option value="" data-i18n="reports.allMyCoaches">All My Coaches</option></select>
         </div>
         <div class="report-actions" style="margin-top:0.6rem;">
-          <label>From:</label>
+          <label data-i18n="reports.from">From:</label>
           <input type="datetime-local" id="reports-from-datetime" />
-          <label>To:</label>
+          <label data-i18n="reports.to">To:</label>
           <input type="datetime-local" id="reports-to-datetime" />
-          <button class="btn-secondary" id="reports-clear-range-btn" type="button">Clear Range</button>
+          <button class="btn-secondary" id="reports-clear-range-btn" type="button" data-i18n="reports.clearRange">Clear Range</button>
         </div>
-        <p class="muted" style="margin:0.5rem 0 0;">Coach select karke aur time range set karke reports coach-number aur us time-window ke hisaab se download hongi. Range khali chhodne par poora available data aayega.</p>
+        <p class="muted" style="margin:0.5rem 0 0;" data-i18n="reports.note">Select a coach and set a time range to download reports filtered by coach number and that time window. Leave the range empty to get all available data.</p>
         <div class="report-actions" style="margin-top:0.8rem;">
-          <button class="btn-primary" id="download-readings-csv">Readings CSV</button>
-          <button class="btn-primary" id="download-alerts-csv">Alerts CSV</button>
-          <button class="btn-primary" id="download-report-pdf">Download PDF Report</button>
-          <button class="btn-secondary" id="print-summary">Print Summary</button>
+          <button class="btn-primary" id="download-readings-csv" data-i18n="reports.btn.readingsCsv">Readings CSV</button>
+          <button class="btn-primary" id="download-alerts-csv" data-i18n="reports.btn.alertsCsv">Alerts CSV</button>
+          <button class="btn-primary" id="download-report-pdf" data-i18n="reports.btn.pdf">Download PDF Report</button>
+          <button class="btn-secondary" id="print-summary" data-i18n="reports.btn.print">Print Summary</button>
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Email Report Delivery</div>
-        <p class="muted">Daily reports are emailed automatically at the time set by Admin (Admin &gt; Alert Thresholds &amp; Logging / Notifications), covering only the coaches assigned to your account. Use the button below to send yourself a report right now to verify delivery.</p>
-        <button class="btn-secondary" id="send-test-report-btn">Send Me a Test Report Now</button>
+        <div class="card-title" data-i18n="reports.card.emailDelivery">Email Report Delivery</div>
+        <p class="muted" data-i18n="reports.emailNote">Daily reports are emailed automatically at the time set by Admin (Admin &gt; Alert Thresholds &amp; Logging / Notifications), covering only the coaches assigned to your account. Use the button below to send yourself a report right now to verify delivery.</p>
+        <button class="btn-secondary" id="send-test-report-btn" data-i18n="reports.btn.sendTest">Send Me a Test Report Now</button>
         <p id="send-test-report-result" class="modal-error"></p>
       </div>
     </section>
@@ -271,15 +332,24 @@
       <div class="card-title-row" style="margin-bottom:0.8rem;">
         <div></div>
         <div>
-          <button class="btn-primary admin-supervisor-only" id="add-rake-btn">+ Add Rake</button>
-          <button class="btn-secondary admin-supervisor-only" id="swap-coach-btn">Swap Coach</button>
+          <button class="btn-primary admin-supervisor-only" id="add-rake-btn" data-i18n="rakes.btn.addRake">+ Add Rake</button>
+          <button class="btn-secondary admin-supervisor-only" id="swap-coach-btn" data-i18n="rakes.btn.swapCoach">Swap Coach</button>
         </div>
       </div>
       <div id="rakes-container"></div>
       <div class="card">
-        <div class="card-title">Coach Swap Log</div>
+        <div class="card-title" data-i18n="rakes.card.swapLog">Coach Swap Log</div>
         <table class="table" id="swap-log-table">
-          <thead><tr><th>Time</th><th>Coach</th><th>From Rake</th><th>To Rake</th><th>Reason</th><th>By</th></tr></thead>
+          <thead>
+            <tr>
+              <th data-i18n="rakes.table.time">Time</th>
+              <th data-i18n="rakes.table.coach">Coach</th>
+              <th data-i18n="rakes.table.fromRake">From Rake</th>
+              <th data-i18n="rakes.table.toRake">To Rake</th>
+              <th data-i18n="rakes.table.reason">Reason</th>
+              <th data-i18n="rakes.table.by">By</th>
+            </tr>
+          </thead>
           <tbody id="swap-log-body"></tbody>
         </table>
       </div>
@@ -288,101 +358,119 @@
     <!-- ===================== ADMIN ===================== -->
     <section id="view-admin" class="view hidden">
       <div class="sub-tabs">
-        <button class="sub-tab active" data-subtab="users">Users</button>
-        <button class="sub-tab" data-subtab="coaches">Coaches</button>
-        <button class="sub-tab" data-subtab="thresholds">Alert Thresholds &amp; Logging</button>
-        <button class="sub-tab" data-subtab="notifications">Notifications</button>
+        <button class="sub-tab active" data-subtab="users" data-i18n="admin.subtab.users">Users</button>
+        <button class="sub-tab" data-subtab="coaches" data-i18n="admin.subtab.coaches">Coaches</button>
+        <button class="sub-tab" data-subtab="thresholds" data-i18n="admin.subtab.thresholds">Alert Thresholds &amp; Logging</button>
+        <button class="sub-tab" data-subtab="notifications" data-i18n="admin.subtab.notifications">Notifications</button>
       </div>
 
       <div id="admin-users" class="sub-view">
         <div class="card-title-row">
-          <div class="card-title">User Management</div>
-          <button class="btn-primary" id="add-user-btn">+ Add User</button>
+          <div class="card-title" data-i18n="admin.users.title">User Management</div>
+          <button class="btn-primary" id="add-user-btn" data-i18n="admin.users.addBtn">+ Add User</button>
         </div>
         <table class="table" id="users-table">
-          <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Assigned Coaches</th><th></th></tr></thead>
+          <thead>
+            <tr>
+              <th data-i18n="admin.users.table.username">Username</th>
+              <th data-i18n="admin.users.table.name">Name</th>
+              <th data-i18n="admin.users.table.role">Role</th>
+              <th data-i18n="admin.users.table.email">Email</th>
+              <th data-i18n="admin.users.table.phone">Phone</th>
+              <th data-i18n="admin.users.table.assignedCoaches">Assigned Coaches</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody id="users-table-body"></tbody>
         </table>
       </div>
 
       <div id="admin-coaches" class="sub-view hidden">
         <div class="card-title-row">
-          <div class="card-title">Coach Management</div>
-          <button class="btn-primary" id="add-coach-btn">+ Add Coach</button>
+          <div class="card-title" data-i18n="admin.coaches.title">Coach Management</div>
+          <button class="btn-primary" id="add-coach-btn" data-i18n="admin.coaches.addBtn">+ Add Coach</button>
         </div>
         <table class="table" id="admin-coaches-table">
-          <thead><tr><th>Coach No.</th><th>Rake</th><th>Type</th><th>Status</th><th></th></tr></thead>
+          <thead>
+            <tr>
+              <th data-i18n="admin.coaches.table.coachNo">Coach No.</th>
+              <th data-i18n="admin.coaches.table.rake">Rake</th>
+              <th data-i18n="admin.coaches.table.type">Type</th>
+              <th data-i18n="admin.coaches.table.status">Status</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody id="admin-coaches-table-body"></tbody>
         </table>
       </div>
 
       <div id="admin-thresholds" class="sub-view hidden">
         <div class="card">
-          <div class="card-title">Alert Band Thresholds</div>
-          <p class="muted">Condition band is the worse of the vibration band and temperature band. Values must increase Yellow &lt; Orange &lt; Red.</p>
+          <div class="card-title" data-i18n="admin.thresholds.title">Alert Band Thresholds</div>
+          <p class="muted" data-i18n="admin.thresholds.note">Condition band is the worse of the vibration band and temperature band. Values must increase Yellow &lt; Orange &lt; Red.</p>
           <form id="thresholds-form" class="threshold-form">
             <div class="threshold-group">
-              <h4>Vibration (g)</h4>
-              <label>Yellow ≥</label><input type="number" id="th-vib-yellow" step="1" required />
-              <label>Orange ≥</label><input type="number" id="th-vib-orange" step="1" required />
-              <label>Red ≥</label><input type="number" id="th-vib-red" step="1" required />
+              <h4 data-i18n="admin.thresholds.vibration">Vibration (g)</h4>
+              <label data-i18n="admin.thresholds.yellow">Yellow ≥</label><input type="number" id="th-vib-yellow" step="1" required />
+              <label data-i18n="admin.thresholds.orange">Orange ≥</label><input type="number" id="th-vib-orange" step="1" required />
+              <label data-i18n="admin.thresholds.red">Red ≥</label><input type="number" id="th-vib-red" step="1" required />
             </div>
             <div class="threshold-group">
-              <h4>Temperature (°C)</h4>
-              <label>Yellow ≥</label><input type="number" id="th-temp-yellow" step="1" required />
-              <label>Orange ≥</label><input type="number" id="th-temp-orange" step="1" required />
-              <label>Red ≥</label><input type="number" id="th-temp-red" step="1" required />
+              <h4 data-i18n="admin.thresholds.temperature">Temperature (°C)</h4>
+              <label data-i18n="admin.thresholds.yellow">Yellow ≥</label><input type="number" id="th-temp-yellow" step="1" required />
+              <label data-i18n="admin.thresholds.orange">Orange ≥</label><input type="number" id="th-temp-orange" step="1" required />
+              <label data-i18n="admin.thresholds.red">Red ≥</label><input type="number" id="th-temp-red" step="1" required />
             </div>
             <div class="threshold-group">
-              <h4>Data Logging Interval</h4>
-              <p class="muted" style="margin:0 0 0.4rem;">How often the OBCMS simulator (or real ingestion service) logs a new reading per axle.</p>
-              <label>Log Interval (seconds)</label>
+              <h4 data-i18n="admin.thresholds.logIntervalTitle">Data Logging Interval</h4>
+              <p class="muted" style="margin:0 0 0.4rem;" data-i18n="admin.thresholds.logIntervalNote">How often a new reading is logged per axle.</p>
+              <label data-i18n="admin.thresholds.logIntervalLabel">Log Interval (seconds)</label>
               <input type="number" id="log-interval-input" min="2" max="3600" step="1" required />
             </div>
-            <button type="submit" class="btn-primary">Save Thresholds &amp; Logging Interval</button>
+            <button type="submit" class="btn-primary" data-i18n="admin.thresholds.saveBtn">Save Thresholds &amp; Logging Interval</button>
           </form>
         </div>
       </div>
 
       <div id="admin-notifications" class="sub-view hidden">
         <div class="card">
-          <div class="card-title">Daily Report Schedule</div>
-          <p class="muted">Every user receives an automatic email report covering only their assigned coaches, once a day at this time (24-hour format, server time).</p>
+          <div class="card-title" data-i18n="admin.notifications.dailyReport.title">Daily Report Schedule</div>
+          <p class="muted" data-i18n="admin.notifications.dailyReport.note">Every user receives an automatic email report covering only their assigned coaches, once a day at this time (24-hour format, server time).</p>
           <form id="daily-report-form" class="threshold-form">
-            <label>Daily Report Time</label>
+            <label data-i18n="admin.notifications.dailyReport.label">Daily Report Time</label>
             <input type="time" id="daily-report-time-input" required style="max-width:180px;" />
-            <button type="submit" class="btn-primary">Save Report Time</button>
+            <button type="submit" class="btn-primary" data-i18n="admin.notifications.dailyReport.saveBtn">Save Report Time</button>
           </form>
         </div>
         <div class="card">
-          <div class="card-title">Email (SMTP) Configuration</div>
-          <p class="muted">Required for real email delivery of alerts and reports. Without this configured, emails are logged only (not actually sent).</p>
+          <div class="card-title" data-i18n="admin.notifications.smtp.title">Email (SMTP) Configuration</div>
+          <p class="muted" data-i18n="admin.notifications.smtp.note">Required for real email delivery of alerts and reports. Without this configured, emails are logged only (not actually sent).</p>
           <form id="smtp-form" class="threshold-form">
-            <label><input type="checkbox" id="smtp-enabled" style="width:auto;display:inline-block;margin-right:0.4rem;" /> Enable SMTP sending</label>
-            <label>SMTP Host</label><input type="text" id="smtp-host" placeholder="smtp.yourprovider.com" />
-            <label>SMTP Port</label><input type="number" id="smtp-port" placeholder="587" />
-            <label><input type="checkbox" id="smtp-secure" style="width:auto;display:inline-block;margin-right:0.4rem;" /> Use SSL/TLS (secure)</label>
-            <label>SMTP Username</label><input type="text" id="smtp-user" placeholder="you@yourdomain.com" />
-            <label>SMTP Password</label><input type="password" id="smtp-pass" placeholder="Leave blank to keep unchanged" />
-            <label>From Name</label><input type="text" id="smtp-from-name" placeholder="Himnish OBCMS & PICCU" />
-            <label>From Email</label><input type="text" id="smtp-from-email" placeholder="noreply@himnish.example" />
-            <button type="submit" class="btn-primary">Save SMTP Settings</button>
+            <label><input type="checkbox" id="smtp-enabled" style="width:auto;display:inline-block;margin-right:0.4rem;" /> <span data-i18n="admin.notifications.smtp.enable">Enable SMTP sending</span></label>
+            <label data-i18n="admin.notifications.smtp.host">SMTP Host</label><input type="text" id="smtp-host" placeholder="smtp.yourprovider.com" />
+            <label data-i18n="admin.notifications.smtp.port">SMTP Port</label><input type="number" id="smtp-port" placeholder="587" />
+            <label><input type="checkbox" id="smtp-secure" style="width:auto;display:inline-block;margin-right:0.4rem;" /> <span data-i18n="admin.notifications.smtp.secure">Use SSL/TLS (secure)</span></label>
+            <label data-i18n="admin.notifications.smtp.username">SMTP Username</label><input type="text" id="smtp-user" placeholder="you@yourdomain.com" />
+            <label data-i18n="admin.notifications.smtp.password">SMTP Password</label><input type="password" id="smtp-pass" placeholder="Leave blank to keep unchanged" />
+            <label data-i18n="admin.notifications.smtp.fromName">From Name</label><input type="text" id="smtp-from-name" placeholder="Himnish OBCMS & PICCU" />
+            <label data-i18n="admin.notifications.smtp.fromEmail">From Email</label><input type="text" id="smtp-from-email" placeholder="noreply@himnish.example" />
+            <button type="submit" class="btn-primary" data-i18n="admin.notifications.smtp.saveBtn">Save SMTP Settings</button>
           </form>
           <div style="margin-top:1rem;display:flex;gap:0.6rem;align-items:center;">
             <input type="text" id="test-email-to" placeholder="test-recipient@example.com" style="flex:1;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:8px;" />
-            <button class="btn-secondary" id="send-test-email-btn">Send Test Email</button>
+            <button class="btn-secondary" id="send-test-email-btn" data-i18n="admin.notifications.smtp.sendTestBtn">Send Test Email</button>
           </div>
           <p id="test-email-result" class="modal-error"></p>
         </div>
         <div class="card">
-          <div class="card-title">SMS Configuration</div>
-          <p class="muted">SMS delivery requires a paid SMS gateway account (e.g. Twilio, MSG91) — enter the provider details here once you have one. Until then, SMS attempts are logged only, not sent.</p>
+          <div class="card-title" data-i18n="admin.notifications.sms.title">SMS Configuration</div>
+          <p class="muted" data-i18n="admin.notifications.sms.note">SMS delivery requires a paid SMS gateway account (e.g. Twilio, MSG91) — enter the provider details here once you have one. Until then, SMS attempts are logged only, not sent.</p>
           <form id="sms-form" class="threshold-form">
-            <label><input type="checkbox" id="sms-enabled" style="width:auto;display:inline-block;margin-right:0.4rem;" /> Enable SMS sending</label>
-            <label>Provider</label><input type="text" id="sms-provider" placeholder="e.g. twilio, msg91" />
-            <label>API Key</label><input type="password" id="sms-api-key" placeholder="Leave blank to keep unchanged" />
-            <label>Sender ID</label><input type="text" id="sms-sender-id" placeholder="e.g. HIMRLY" />
-            <button type="submit" class="btn-primary">Save SMS Settings</button>
+            <label><input type="checkbox" id="sms-enabled" style="width:auto;display:inline-block;margin-right:0.4rem;" /> <span data-i18n="admin.notifications.sms.enable">Enable SMS sending</span></label>
+            <label data-i18n="admin.notifications.sms.provider">Provider</label><input type="text" id="sms-provider" placeholder="e.g. twilio, msg91" />
+            <label data-i18n="admin.notifications.sms.apiKey">API Key</label><input type="password" id="sms-api-key" placeholder="Leave blank to keep unchanged" />
+            <label data-i18n="admin.notifications.sms.senderId">Sender ID</label><input type="text" id="sms-sender-id" placeholder="e.g. HIMRLY" />
+            <button type="submit" class="btn-primary" data-i18n="admin.notifications.sms.saveBtn">Save SMS Settings</button>
           </form>
         </div>
       </div>
@@ -391,26 +479,36 @@
     <!-- ===================== SETTINGS ===================== -->
     <section id="view-settings" class="view hidden">
       <div class="card">
-        <div class="card-title">Data Source</div>
-        <p class="muted">Demo Mode ke simulated data se Live Hardware Mode par switch karo jab Modbus TCP hardware wire ho jaye — redeploy ki zaroorat nahi, turant switch ho jayega.</p>
+        <div class="card-title" data-i18n="settings.dataSource.title">Data Source</div>
+        <p class="muted" data-i18n="settings.dataSource.note">Switch between simulated data and live hardware polling once the Modbus TCP hardware is wired up — it switches instantly, no redeploy needed.</p>
         <form id="data-source-form" class="threshold-form">
-          <label>Active Source</label>
+          <label data-i18n="settings.dataSource.activeSource">Active Source</label>
           <select id="data-source-select">
-            <option value="demo">Demo Mode (simulated data)</option>
-            <option value="live">Live Hardware Mode (Modbus TCP polling)</option>
+            <option value="demo" data-i18n="settings.dataSource.optionSimulated">Simulated Data</option>
+            <option value="live" data-i18n="settings.dataSource.optionLive">Live Hardware (Modbus TCP polling)</option>
           </select>
-          <label>Poll Interval (seconds)</label>
+          <label data-i18n="settings.dataSource.pollInterval">Poll Interval (seconds)</label>
           <input type="number" id="data-source-poll-interval" min="2" max="3600" step="1" required style="max-width:180px;" />
-          <button type="submit" class="btn-primary">Save Data Source</button>
+          <button type="submit" class="btn-primary" data-i18n="settings.dataSource.saveBtn">Save Data Source</button>
         </form>
         <p id="data-source-result" class="modal-error"></p>
       </div>
 
       <div class="card">
-        <div class="card-title">Per-Coach Hardware Connectivity (Modbus TCP)</div>
-        <p class="muted">Har coach ke OBCMS aur PICCU Modbus master ka IP:Port yahan set karo (router ke through reachable). Blank IP wale coach ingestion me skip ho jate hain.</p>
+        <div class="card-title" data-i18n="settings.connectivity.title">Per-Coach Hardware Connectivity (Modbus TCP)</div>
+        <p class="muted" data-i18n="settings.connectivity.note">Set each coach's OBCMS and PICCU Modbus master IP:Port here (reachable through the router). A coach with a blank IP is skipped by ingestion.</p>
         <table class="table" id="coach-hardware-table">
-          <thead><tr><th>Coach</th><th>OBCMS Master IP</th><th>Port</th><th>PICCU Master IP</th><th>Port</th><th>Router IP</th><th></th></tr></thead>
+          <thead>
+            <tr>
+              <th data-i18n="settings.connectivity.table.coach">Coach</th>
+              <th data-i18n="settings.connectivity.table.obcmsIp">OBCMS Master IP</th>
+              <th data-i18n="settings.connectivity.table.port">Port</th>
+              <th data-i18n="settings.connectivity.table.piccuIp">PICCU Master IP</th>
+              <th data-i18n="settings.connectivity.table.port">Port</th>
+              <th data-i18n="settings.connectivity.table.routerIp">Router IP</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody id="coach-hardware-table-body"></tbody>
         </table>
       </div>
@@ -418,6 +516,7 @@
   </main>
 </div>
 
+<script src="js/i18n.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
