@@ -1,15 +1,25 @@
 const PDFDocument = require("pdfkit");
 const { db } = require("../db/db");
 
-function latestReadingFor(axleId) {
-  const readings = db.data.readings.filter((r) => r.axle_id === axleId);
+function latestReadingFor(axleId, fromTs, toTs) {
+  let readings = db.data.readings.filter((r) => r.axle_id === axleId);
+  if (fromTs || toTs) {
+    readings = readings.filter((r) => {
+      const t = new Date(r.ts);
+      if (fromTs && t < fromTs) return false;
+      if (toTs && t > toTs) return false;
+      return true;
+    });
+  }
   return readings.sort((a, b) => new Date(b.ts) - new Date(a.ts))[0] || null;
 }
 
 // Builds a PDF report (as a Buffer) covering the given list of coach IDs.
 // Used both for on-demand "Download PDF" on the Reports page and for the
 // scheduled daily per-user email report.
-function buildCoachReportPdf({ title, coachIds, generatedFor }) {
+// fromTs/toTs (optional Date objects) restrict readings & alerts to a time window
+// so the report can be generated "kis time se kis time ka" for a given coach.
+function buildCoachReportPdf({ title, coachIds, generatedFor, fromTs, toTs }) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 40, size: "A4" });
     const chunks = [];
@@ -24,6 +34,9 @@ function buildCoachReportPdf({ title, coachIds, generatedFor }) {
       .text(`Report: ${title}`)
       .text(`Generated for: ${generatedFor}`)
       .text(`Generated at: ${new Date().toISOString()}`);
+    if (fromTs || toTs) {
+      doc.text(`Data period: ${fromTs ? fromTs.toLocaleString() : "Beginning"}  to  ${toTs ? toTs.toLocaleString() : "Now"}`);
+    }
     doc.moveDown(0.8);
 
     const coaches = db.data.coaches.filter((c) => coachIds.includes(c.id));
@@ -55,7 +68,7 @@ function buildCoachReportPdf({ title, coachIds, generatedFor }) {
       doc.moveDown(0.2);
 
       axles.forEach((a) => {
-        const latest = latestReadingFor(a.id);
+        const latest = latestReadingFor(a.id, fromTs, toTs);
         const rowY = doc.y;
         doc.fillColor("#1c2530").text(`Axle-${a.axle_number}`, colX[0], rowY);
         doc.text(latest ? String(latest.vibration_g) : "-", colX[1], rowY);
@@ -65,7 +78,15 @@ function buildCoachReportPdf({ title, coachIds, generatedFor }) {
         doc.moveDown(0.15);
       });
 
-      const alerts = db.data.alerts.filter((al) => al.coach_id === coach.id);
+      let alerts = db.data.alerts.filter((al) => al.coach_id === coach.id);
+      if (fromTs || toTs) {
+        alerts = alerts.filter((al) => {
+          const t = new Date(al.created_at);
+          if (fromTs && t < fromTs) return false;
+          if (toTs && t > toTs) return false;
+          return true;
+        });
+      }
       const openAlerts = alerts.filter((al) => !al.acknowledged);
       doc.moveDown(0.3);
       doc.fontSize(9).fillColor("#5b6b7f").text(`Total alerts: ${alerts.length}   |   Open: ${openAlerts.length}   |   Acknowledged: ${alerts.length - openAlerts.length}`);

@@ -167,13 +167,69 @@ function populateCoachSelectors() {
   piccuSel.innerHTML = optionHtml;
   reportsSel.innerHTML = `<option value="">All Coaches</option>` + optionHtml;
 
+  // Typing (datalist) support alongside the dropdowns
+  const datalistHtml = COACHES.map((c) => `<option value="${c.coach_number}">`).join("");
+  document.getElementById("obcms-coach-datalist").innerHTML = datalistHtml;
+  document.getElementById("piccu-coach-datalist").innerHTML = datalistHtml;
+  document.getElementById("reports-coach-datalist").innerHTML = datalistHtml;
+
   selectedObcmsCoach = COACHES[0] ? COACHES[0].id : null;
   selectedPiccuCoach = COACHES[0] ? COACHES[0].id : null;
-  obcmsSel.onchange = (e) => { selectedObcmsCoach = Number(e.target.value); selectedAxleId = null; loadObcms(); };
-  piccuSel.onchange = (e) => { selectedPiccuCoach = Number(e.target.value); loadPiccu(); };
+  obcmsSel.onchange = (e) => {
+    selectedObcmsCoach = Number(e.target.value);
+    selectedAxleId = null;
+    syncCoachSearchBox("obcms-coach-search", selectedObcmsCoach);
+    loadObcms();
+  };
+  piccuSel.onchange = (e) => {
+    selectedPiccuCoach = Number(e.target.value);
+    syncCoachSearchBox("piccu-coach-search", selectedPiccuCoach);
+    loadPiccu();
+  };
+
+  const obcmsSearch = document.getElementById("obcms-coach-search");
+  syncCoachSearchBox("obcms-coach-search", selectedObcmsCoach);
+  const piccuSearch = document.getElementById("piccu-coach-search");
+  syncCoachSearchBox("piccu-coach-search", selectedPiccuCoach);
 }
 
+// Keep a text search box's value in sync with the currently selected coach id
+function syncCoachSearchBox(searchInputId, coachId) {
+  const el = document.getElementById(searchInputId);
+  if (!el) return;
+  const coach = COACHES.find((c) => c.id === coachId);
+  el.value = coach ? coach.coach_number : "";
+}
+
+// Typing into a coach search box (with datalist) selects the matching coach
+document.getElementById("obcms-coach-search").addEventListener("change", (e) => {
+  const match = COACHES.find((c) => c.coach_number === e.target.value.trim());
+  if (match) {
+    document.getElementById("obcms-coach-select").value = match.id;
+    selectedObcmsCoach = match.id;
+    selectedAxleId = null;
+    loadObcms();
+  }
+});
+document.getElementById("piccu-coach-search").addEventListener("change", (e) => {
+  const match = COACHES.find((c) => c.coach_number === e.target.value.trim());
+  if (match) {
+    document.getElementById("piccu-coach-select").value = match.id;
+    selectedPiccuCoach = match.id;
+    loadPiccu();
+  }
+});
+document.getElementById("reports-coach-search").addEventListener("change", (e) => {
+  const val = e.target.value.trim();
+  const select = document.getElementById("reports-coach-select");
+  if (!val) { select.value = ""; return; }
+  const match = COACHES.find((c) => c.coach_number === val);
+  if (match) select.value = match.id;
+});
+
 // ================= FLEET OVERVIEW =================
+let overviewCoachQuery = "";
+
 async function loadOverview() {
   try {
     const summary = await apiFetch("/coaches/summary");
@@ -187,20 +243,47 @@ async function loadOverview() {
     document.getElementById("band-red").textContent = summary.band_counts.RED;
 
     COACHES = await apiFetch("/coaches");
-    const tbody = document.getElementById("fleet-table-body");
-    tbody.innerHTML = COACHES.map((c) => `
-      <tr>
-        <td><b>${c.coach_number}</b></td>
-        <td>${c.coach_type}</td>
-        <td>${c.rake_name} <span class="rake-type-tag ${c.rake_type.replace(/\s/g, "")}">${c.rake_type}</span></td>
-        <td><span class="band-pill ${c.overall_band}">${c.overall_band}</span></td>
-        <td>${c.open_alerts}</td>
-        <td>${c.piccu_faults}</td>
-        <td><button class="btn-small" onclick="jumpToCoach(${c.id})">View OBCMS</button></td>
-      </tr>
-    `).join("");
+    renderOverviewCoachOptions();
+    renderFleetTable();
   } catch (err) { console.error(err); }
 }
+
+function renderOverviewCoachOptions() {
+  const datalist = document.getElementById("overview-coach-datalist");
+  const select = document.getElementById("overview-coach-select");
+  datalist.innerHTML = COACHES.map((c) => `<option value="${c.coach_number}">`).join("");
+  const prevValue = select.value;
+  select.innerHTML = `<option value="">All Coaches</option>` + COACHES.map((c) => `<option value="${c.coach_number}">${c.coach_number} — ${c.coach_type} (${c.rake_name})</option>`).join("");
+  select.value = prevValue && COACHES.some((c) => c.coach_number === prevValue) ? prevValue : "";
+}
+
+function renderFleetTable() {
+  const tbody = document.getElementById("fleet-table-body");
+  const q = overviewCoachQuery.trim().toLowerCase();
+  const filtered = q ? COACHES.filter((c) => c.coach_number.toLowerCase().includes(q)) : COACHES;
+  tbody.innerHTML = filtered.map((c) => `
+    <tr>
+      <td><b>${c.coach_number}</b></td>
+      <td>${c.coach_type}</td>
+      <td>${c.rake_name} <span class="rake-type-tag ${c.rake_type.replace(/\s/g, "")}">${c.rake_type}</span></td>
+      <td><span class="band-pill ${c.overall_band}">${c.overall_band}</span></td>
+      <td>${c.open_alerts}</td>
+      <td>${c.piccu_faults}</td>
+      <td><button class="btn-small" onclick="jumpToCoach(${c.id})">View OBCMS</button></td>
+    </tr>
+  `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">No coach matches "${overviewCoachQuery}".</td></tr>`;
+}
+
+document.getElementById("overview-coach-search").addEventListener("input", (e) => {
+  overviewCoachQuery = e.target.value;
+  document.getElementById("overview-coach-select").value = "";
+  renderFleetTable();
+});
+document.getElementById("overview-coach-select").addEventListener("change", (e) => {
+  overviewCoachQuery = e.target.value;
+  document.getElementById("overview-coach-search").value = e.target.value;
+  renderFleetTable();
+});
 
 function jumpToCoach(coachId) {
   selectedObcmsCoach = coachId;
@@ -342,24 +425,56 @@ async function loadHealth() {
 }
 
 // ================= PREDICTION =================
+let predictionCoachQuery = "";
+let predictionDataCache = [];
+
 async function loadPrediction() {
   try {
     const { note, predictions } = await apiFetch("/predictions");
+    predictionDataCache = predictions;
     document.getElementById("prediction-note").textContent = note;
-    const tbody = document.getElementById("prediction-table-body");
-    tbody.innerHTML = predictions.slice(0, 40).map((p) => `
-      <tr>
-        <td>${p.coach_number}</td>
-        <td>Axle-${p.axle_number}</td>
-        <td><span class="band-pill ${p.current_band}">${p.current_band}</span></td>
-        <td>${p.vibration_trend}</td>
-        <td>${p.temperature_trend}</td>
-        <td>${p.driver_parameter || "-"}</td>
-        <td>${p.estimated_minutes_to_breach != null ? p.estimated_minutes_to_breach + " min (to " + p.predicted_next_threshold + (p.driver_parameter === "vibration" ? "g" : "°C") + ")" : "Stable"}</td>
-      </tr>
-    `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">Not enough history yet — check back shortly.</td></tr>`;
+    renderPredictionCoachOptions();
+    renderPredictionTable();
   } catch (err) { console.error(err); }
 }
+
+function renderPredictionCoachOptions() {
+  const uniqueCoaches = [...new Map(predictionDataCache.map((p) => [p.coach_number, p])).values()];
+  const datalist = document.getElementById("prediction-coach-datalist");
+  datalist.innerHTML = uniqueCoaches.map((c) => `<option value="${c.coach_number}">`).join("");
+  const select = document.getElementById("prediction-coach-select");
+  const prevValue = select.value;
+  select.innerHTML = `<option value="">All Coaches</option>` + uniqueCoaches.map((c) => `<option value="${c.coach_number}">${c.coach_number}</option>`).join("");
+  select.value = prevValue && uniqueCoaches.some((c) => c.coach_number === prevValue) ? prevValue : "";
+}
+
+function renderPredictionTable() {
+  const tbody = document.getElementById("prediction-table-body");
+  const q = predictionCoachQuery.trim().toLowerCase();
+  const filtered = q ? predictionDataCache.filter((p) => p.coach_number.toLowerCase().includes(q)) : predictionDataCache;
+  tbody.innerHTML = filtered.slice(0, 40).map((p) => `
+    <tr>
+      <td>${p.coach_number}</td>
+      <td>Axle-${p.axle_number}</td>
+      <td><span class="band-pill ${p.current_band}">${p.current_band}</span></td>
+      <td>${p.vibration_trend}</td>
+      <td>${p.temperature_trend}</td>
+      <td>${p.driver_parameter || "-"}</td>
+      <td>${p.estimated_minutes_to_breach != null ? p.estimated_minutes_to_breach + " min (to " + p.predicted_next_threshold + (p.driver_parameter === "vibration" ? "g" : "°C") + ")" : "Stable"}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">${predictionCoachQuery ? `No coach matches "${predictionCoachQuery}".` : "Not enough history yet — check back shortly."}</td></tr>`;
+}
+
+document.getElementById("prediction-coach-search").addEventListener("input", (e) => {
+  predictionCoachQuery = e.target.value;
+  document.getElementById("prediction-coach-select").value = "";
+  renderPredictionTable();
+});
+document.getElementById("prediction-coach-select").addEventListener("change", (e) => {
+  predictionCoachQuery = e.target.value;
+  document.getElementById("prediction-coach-search").value = e.target.value;
+  renderPredictionTable();
+});
 
 // ================= ANALYTICS =================
 let analyticsCoachesCache = [];
@@ -520,17 +635,31 @@ async function downloadCsv(path, filename) {
   } catch (err) { showToast(err.message, "error"); }
 }
 
-document.getElementById("download-readings-csv").addEventListener("click", () => {
+// Builds the shared query string (coach + from/to timestamp range) used by all report downloads
+function buildReportsQuery() {
   const coachId = document.getElementById("reports-coach-select").value;
-  downloadCsv(`/reports/readings.csv${coachId ? "?coach_id=" + coachId : ""}`, "obcms_readings.csv");
+  const fromVal = document.getElementById("reports-from-datetime").value;
+  const toVal = document.getElementById("reports-to-datetime").value;
+  const params = [];
+  if (coachId) params.push("coach_id=" + encodeURIComponent(coachId));
+  if (fromVal) params.push("from=" + encodeURIComponent(new Date(fromVal).toISOString()));
+  if (toVal) params.push("to=" + encodeURIComponent(new Date(toVal).toISOString()));
+  return params.length ? "?" + params.join("&") : "";
+}
+
+document.getElementById("reports-clear-range-btn").addEventListener("click", () => {
+  document.getElementById("reports-from-datetime").value = "";
+  document.getElementById("reports-to-datetime").value = "";
+});
+
+document.getElementById("download-readings-csv").addEventListener("click", () => {
+  downloadCsv(`/reports/readings.csv${buildReportsQuery()}`, "obcms_readings.csv");
 });
 document.getElementById("download-alerts-csv").addEventListener("click", () => {
-  const coachId = document.getElementById("reports-coach-select").value;
-  downloadCsv(`/reports/alerts.csv${coachId ? "?coach_id=" + coachId : ""}`, "obcms_alerts.csv");
+  downloadCsv(`/reports/alerts.csv${buildReportsQuery()}`, "obcms_alerts.csv");
 });
 document.getElementById("download-report-pdf").addEventListener("click", () => {
-  const coachId = document.getElementById("reports-coach-select").value;
-  downloadCsv(`/reports/report.pdf${coachId ? "?coach_id=" + coachId : ""}`, "obcms_report.pdf");
+  downloadCsv(`/reports/report.pdf${buildReportsQuery()}`, "obcms_report.pdf");
 });
 document.getElementById("print-summary").addEventListener("click", () => window.print());
 

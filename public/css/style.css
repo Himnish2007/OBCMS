@@ -139,10 +139,13 @@ body {
 .btn-small:hover { background: var(--navy-dark); }
 
 /* ---------- Coach selector ---------- */
-.coach-selector { margin-bottom: 1.1rem; display: flex; align-items: center; gap: 0.6rem; }
+.coach-selector { margin-bottom: 1.1rem; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .coach-selector label { font-weight: 700; font-size: 0.85rem; color: var(--text-muted); }
 .coach-selector select {
   padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid var(--border); font-size: 0.9rem; min-width: 260px;
+}
+.coach-selector input[type="text"] {
+  padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid var(--border); font-size: 0.9rem; min-width: 200px;
 }
 
 /* ---------- OBCMS sensor grid ---------- */
@@ -295,4 +298,8 @@ body.role-Admin .nav-item.admin-only { display: block; }
 /* ---------- Report actions ---------- */
 .report-actions { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
 .report-actions select { padding: 0.5rem 0.7rem; border-radius: 8px; border: 1px solid var(--border); }
+.report-actions input[type="text"],
+.report-actions input[type="datetime-local"] {
+  padding: 0.5rem 0.7rem; border-radius: 8px; border: 1px solid var(--border); font-size: 0.9rem;
+}
 

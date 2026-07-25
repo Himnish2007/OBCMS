@@ -93,6 +93,12 @@
 
       <div class="card">
         <div class="card-title">Fleet — Coach Wise Status</div>
+        <div class="coach-selector">
+          <label>Search / Select Coach:</label>
+          <input type="text" id="overview-coach-search" placeholder="Type coach number..." list="overview-coach-datalist" />
+          <datalist id="overview-coach-datalist"></datalist>
+          <select id="overview-coach-select"><option value="">All Coaches</option></select>
+        </div>
         <table class="table" id="fleet-table">
           <thead>
             <tr><th>Coach No.</th><th>Type</th><th>Rake</th><th>Health Band</th><th>Open Alerts</th><th>PICCU Faults</th><th></th></tr>
@@ -106,6 +112,8 @@
     <section id="view-obcms" class="view hidden">
       <div class="coach-selector">
         <label>Select Coach:</label>
+        <input type="text" id="obcms-coach-search" placeholder="Type coach number..." list="obcms-coach-datalist" />
+        <datalist id="obcms-coach-datalist"></datalist>
         <select id="obcms-coach-select"></select>
       </div>
       <div class="sensor-grid" id="obcms-sensor-grid"></div>
@@ -126,6 +134,8 @@
     <section id="view-piccu" class="view hidden">
       <div class="coach-selector">
         <label>Select Coach:</label>
+        <input type="text" id="piccu-coach-search" placeholder="Type coach number..." list="piccu-coach-datalist" />
+        <datalist id="piccu-coach-datalist"></datalist>
         <select id="piccu-coach-select"></select>
       </div>
       <div class="card">
@@ -161,6 +171,12 @@
       <div class="info-banner" id="prediction-note"></div>
       <div class="card">
         <div class="card-title">Predicted Time to Next Threshold Breach</div>
+        <div class="coach-selector">
+          <label>Search / Select Coach:</label>
+          <input type="text" id="prediction-coach-search" placeholder="Type coach number..." list="prediction-coach-datalist" />
+          <datalist id="prediction-coach-datalist"></datalist>
+          <select id="prediction-coach-select"><option value="">All Coaches</option></select>
+        </div>
         <table class="table" id="prediction-table">
           <thead><tr><th>Coach</th><th>Axle</th><th>Current Band</th><th>Vibration Trend</th><th>Temp Trend</th><th>Driven By</th><th>Est. Time to Breach</th></tr></thead>
           <tbody id="prediction-table-body"></tbody>
@@ -222,7 +238,19 @@
         <div class="card-title">Export Data</div>
         <div class="report-actions">
           <label>Filter by coach (optional):</label>
+          <input type="text" id="reports-coach-search" placeholder="Type coach number..." list="reports-coach-datalist" />
+          <datalist id="reports-coach-datalist"></datalist>
           <select id="reports-coach-select"><option value="">All My Coaches</option></select>
+        </div>
+        <div class="report-actions" style="margin-top:0.6rem;">
+          <label>From:</label>
+          <input type="datetime-local" id="reports-from-datetime" />
+          <label>To:</label>
+          <input type="datetime-local" id="reports-to-datetime" />
+          <button class="btn-secondary" id="reports-clear-range-btn" type="button">Clear Range</button>
+        </div>
+        <p class="muted" style="margin:0.5rem 0 0;">Coach select karke aur time range set karke reports coach-number aur us time-window ke hisaab se download hongi. Range khali chhodne par poora available data aayega.</p>
+        <div class="report-actions" style="margin-top:0.8rem;">
           <button class="btn-primary" id="download-readings-csv">Readings CSV</button>
           <button class="btn-primary" id="download-alerts-csv">Alerts CSV</button>
           <button class="btn-primary" id="download-report-pdf">Download PDF Report</button>

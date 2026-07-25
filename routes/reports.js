@@ -28,10 +28,30 @@ function resolveCoachIds(req) {
   return [...allowed];
 }
 
+// Reads ?from= and ?to= (ISO datetime strings) from the query string.
+// Either or both may be omitted, in which case that side of the range is unbounded.
+function resolveDateRange(req) {
+  const { from, to } = req.query;
+  const fromTs = from ? new Date(from) : null;
+  const toTs = to ? new Date(to) : null;
+  return {
+    fromTs: fromTs && !isNaN(fromTs) ? fromTs : null,
+    toTs: toTs && !isNaN(toTs) ? toTs : null,
+  };
+}
+
+function withinRange(tsValue, fromTs, toTs) {
+  const t = new Date(tsValue);
+  if (fromTs && t < fromTs) return false;
+  if (toTs && t > toTs) return false;
+  return true;
+}
+
 router.get("/readings.csv", async (req, res) => {
   await db.read();
   const coachIds = resolveCoachIds(req);
-  let readings = db.data.readings.filter((r) => coachIds.includes(r.coach_id));
+  const { fromTs, toTs } = resolveDateRange(req);
+  let readings = db.data.readings.filter((r) => coachIds.includes(r.coach_id) && withinRange(r.ts, fromTs, toTs));
   readings = readings
     .map((r) => {
       const coach = db.data.coaches.find((c) => c.id === r.coach_id);
@@ -56,7 +76,8 @@ router.get("/readings.csv", async (req, res) => {
 router.get("/alerts.csv", async (req, res) => {
   await db.read();
   const coachIds = resolveCoachIds(req);
-  let alerts = db.data.alerts.filter((a) => coachIds.includes(a.coach_id));
+  const { fromTs, toTs } = resolveDateRange(req);
+  let alerts = db.data.alerts.filter((a) => coachIds.includes(a.coach_id) && withinRange(a.created_at, fromTs, toTs));
   alerts = alerts
     .map((a) => {
       const coach = db.data.coaches.find((c) => c.id === a.coach_id);
@@ -83,12 +104,15 @@ router.get("/alerts.csv", async (req, res) => {
 router.get("/report.pdf", async (req, res) => {
   await db.read();
   const coachIds = resolveCoachIds(req);
+  const { fromTs, toTs } = resolveDateRange(req);
   const user = getCurrentUser(req);
   try {
     const pdfBuffer = await buildCoachReportPdf({
       title: req.query.coach_id ? "Single Coach Report" : "Fleet Report",
       coachIds,
       generatedFor: user ? `${user.name} (${user.username})` : "Unknown",
+      fromTs,
+      toTs,
     });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="obcms_report_${Date.now()}.pdf"`);
