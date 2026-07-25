@@ -103,7 +103,11 @@ body {
 .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.3rem; }
 .topbar-title { font-size: 1.4rem; font-weight: 800; color: var(--navy-dark); }
 .topbar-sub { font-size: 0.82rem; color: var(--text-muted); }
+.topbar-right { display: flex; align-items: center; gap: 1.1rem; }
 .topbar-status { font-size: 0.8rem; color: var(--green); font-weight: 700; display: flex; align-items: center; gap: 0.4rem; }
+.topbar-lang-switch { margin-bottom: 0; }
+.topbar-lang-switch .lang-btn { border-color: var(--border); color: var(--text-muted); }
+.topbar-lang-switch .lang-btn.active { background: var(--orange); border-color: var(--orange); color: #fff; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; }
 .dot.pulse { animation: pulse 1.6s infinite; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(46,125,50,0.5);} 70% { box-shadow: 0 0 0 7px rgba(46,125,50,0);} 100% {box-shadow: 0 0 0 0 rgba(46,125,50,0);} }

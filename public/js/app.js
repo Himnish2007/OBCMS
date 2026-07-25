@@ -44,11 +44,11 @@ async function apiFetch(path, opts = {}) {
   const res = await fetch(API + path, { ...opts, headers });
   if (res.status === 401) {
     logout();
-    throw new Error("Session expired, please sign in again.");
+    throw new Error(t("common.sessionExpired"));
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || "Request failed");
+    throw new Error(body.error || t("common.requestFailed"));
   }
   return res.json();
 }
@@ -66,7 +66,7 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
       body: JSON.stringify({ username, password }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Login failed");
+    if (!res.ok) throw new Error(data.error || t("common.loginFailed"));
     TOKEN = data.token;
     USER = data.user;
     localStorage.setItem("himnish_token", TOKEN);
@@ -141,7 +141,7 @@ document.querySelectorAll(".sub-tab").forEach((tab) => {
 async function boot() {
   document.getElementById("login-screen").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
-  document.getElementById("user-name").textContent = `${USER.name} (${USER.role})`;
+  document.getElementById("user-name").textContent = `${USER.name} (${t("role." + USER.role)})`;
   document.body.className = "role-" + USER.role;
 
   try {
@@ -433,9 +433,9 @@ let predictionDataCache = [];
 
 async function loadPrediction() {
   try {
-    const { note, predictions } = await apiFetch("/predictions");
+    const { predictions } = await apiFetch("/predictions");
     predictionDataCache = predictions;
-    document.getElementById("prediction-note").textContent = note;
+    document.getElementById("prediction-note").textContent = t("prediction.noteText");
     renderPredictionCoachOptions();
     renderPredictionTable();
   } catch (err) { console.error(err); }
@@ -460,10 +460,10 @@ function renderPredictionTable() {
       <td>${p.coach_number}</td>
       <td>${t("common.axlePrefix")}${p.axle_number}</td>
       <td><span class="band-pill ${p.current_band}">${t("common.band." + p.current_band)}</span></td>
-      <td>${p.vibration_trend}</td>
-      <td>${p.temperature_trend}</td>
-      <td>${p.driver_parameter || "-"}</td>
-      <td>${p.estimated_minutes_to_breach != null ? p.estimated_minutes_to_breach + " min (to " + p.predicted_next_threshold + (p.driver_parameter === "vibration" ? "g" : "°C") + ")" : t("common.stable")}</td>
+      <td>${t("trend." + p.vibration_trend)}</td>
+      <td>${t("trend." + p.temperature_trend)}</td>
+      <td>${p.driver_parameter ? t("driver." + p.driver_parameter) : "-"}</td>
+      <td>${p.estimated_minutes_to_breach != null ? p.estimated_minutes_to_breach + " " + t("common.minAbbrev") + " (" + t("prediction.toLabel") + " " + p.predicted_next_threshold + (p.driver_parameter === "vibration" ? "g" : "°C") + ")" : t("common.stable")}</td>
     </tr>
   `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">${predictionCoachQuery ? t("prediction.noMatch", { q: predictionCoachQuery }) : t("prediction.noHistory")}</td></tr>`;
 }
@@ -628,7 +628,7 @@ async function loadReports() {
 async function downloadCsv(path, filename) {
   try {
     const res = await fetch(API + path, { headers: { Authorization: "Bearer " + TOKEN } });
-    if (!res.ok) throw new Error("Export failed");
+    if (!res.ok) throw new Error(t("common.exportFailed"));
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -984,7 +984,7 @@ async function loadAdminUsers() {
     <tr>
       <td>${u.username}</td>
       <td>${u.name}</td>
-      <td>${u.role}</td>
+      <td>${t("role." + u.role)}</td>
       <td>${u.email || '<span class="muted">-</span>'}</td>
       <td>${u.phone || '<span class="muted">-</span>'}</td>
       <td>${u.role === "Admin" ? `<span class="muted">${t("admin.users.allCoaches")}</span>` : (u.assigned_coaches.length ? u.assigned_coaches.length + " " + t("rakes.coachCount") : `<span class="muted">${t("admin.users.none")}</span>`)}</td>
@@ -1006,7 +1006,7 @@ document.getElementById("add-user-btn").addEventListener("click", () => {
       <label>${t("admin.users.modal.email")}</label><input type="email" id="u-email" placeholder="user@example.com" />
       <label>${t("admin.users.modal.phone")}</label><input type="text" id="u-phone" placeholder="+91XXXXXXXXXX" />
       <label>${t("admin.users.modal.role")}</label>
-      <select id="u-role"><option value="Viewer">Viewer</option><option value="Supervisor">Supervisor</option><option value="Admin">Admin</option></select>
+      <select id="u-role"><option value="Viewer">${t("role.Viewer")}</option><option value="Supervisor">${t("role.Supervisor")}</option><option value="Admin">${t("role.Admin")}</option></select>
       <label>${t("admin.users.modal.assignedCoaches")}</label>
       ${coachCheckboxListHtml([])}
       <p class="modal-error" id="user-form-error"></p>
@@ -1050,9 +1050,9 @@ async function editUser(id) {
       <label>${t("admin.users.modal.phone")}</label><input type="text" id="ue-phone" value="${u.phone || ""}" placeholder="+91XXXXXXXXXX" />
       <label>${t("admin.users.modal.role")}</label>
       <select id="ue-role">
-        <option value="Viewer" ${u.role === "Viewer" ? "selected" : ""}>Viewer</option>
-        <option value="Supervisor" ${u.role === "Supervisor" ? "selected" : ""}>Supervisor</option>
-        <option value="Admin" ${u.role === "Admin" ? "selected" : ""}>Admin</option>
+        <option value="Viewer" ${u.role === "Viewer" ? "selected" : ""}>${t("role.Viewer")}</option>
+        <option value="Supervisor" ${u.role === "Supervisor" ? "selected" : ""}>${t("role.Supervisor")}</option>
+        <option value="Admin" ${u.role === "Admin" ? "selected" : ""}>${t("role.Admin")}</option>
       </select>
       <label>${t("admin.users.modal.newPassword")}</label><input type="password" id="ue-password" minlength="6" />
       <label>${t("admin.users.modal.assignedCoaches")}</label>

@@ -64,11 +64,6 @@
       <button class="nav-item admin-only" data-view="settings" data-i18n="nav.settings">Settings</button>
     </nav>
     <div class="sidebar-footer">
-      <div class="lang-switch">
-        <span class="lang-switch-label" data-i18n="sidebar.language">Language</span>
-        <button type="button" class="lang-btn active" data-lang="en">EN</button>
-        <button type="button" class="lang-btn" data-lang="hi">हिं</button>
-      </div>
       <div id="user-name" class="user-name"></div>
       <button id="logout-btn" class="logout-btn" data-i18n="sidebar.logout">Logout</button>
     </div>
@@ -80,8 +75,14 @@
         <div class="topbar-title" id="view-title" data-i18n="nav.overview">Fleet Overview</div>
         <div class="topbar-sub" data-i18n="topbar.subtitle">Live condition monitoring across the coach fleet</div>
       </div>
-      <div class="topbar-status">
-        <span class="dot pulse"></span> <span data-i18n="topbar.live">Live</span>
+      <div class="topbar-right">
+        <div class="lang-switch topbar-lang-switch">
+          <button type="button" class="lang-btn active" data-lang="en">EN</button>
+          <button type="button" class="lang-btn" data-lang="hi">हिं</button>
+        </div>
+        <div class="topbar-status">
+          <span class="dot pulse"></span> <span data-i18n="topbar.live">Live</span>
+        </div>
       </div>
     </header>
 
