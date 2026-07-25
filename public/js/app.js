@@ -114,6 +114,7 @@ function loadView(view) {
   if (view === "reports") loadReports();
   if (view === "rakes") loadRakes();
   if (view === "admin") loadAdmin();
+  if (view === "settings") loadSettings();
 }
 
 document.querySelectorAll(".filter-tab").forEach((tab) => {
@@ -732,6 +733,7 @@ async function loadRakes() {
 async function editRake(id) {
   const rake = RAKES.find((r) => r.id === id);
   if (!rake) return;
+  const rakeCoaches = [...(rake.coaches || [])].sort((a, b) => a.position - b.position);
   openModal(`
     <h3>Edit Rake — ${rake.rake_name}</h3>
     <form id="rake-edit-form">
@@ -749,7 +751,33 @@ async function editRake(id) {
         <button type="submit" class="btn-primary">Save Changes</button>
       </div>
     </form>
+
+    <h3 style="margin-top:1.2rem;">Coach Positions — Total: ${rakeCoaches.length}</h3>
+    <table class="table" id="re-positions-table">
+      <thead><tr><th>Coach</th><th>Type</th><th>Position</th></tr></thead>
+      <tbody>
+        ${rakeCoaches.map((c) => `
+          <tr data-coach-id="${c.id}">
+            <td>${c.coach_number}</td>
+            <td>${c.coach_type}</td>
+            <td><input type="number" class="re-position-input" min="1" value="${c.position}" style="width:80px;" /></td>
+          </tr>
+        `).join("") || `<tr><td colspan="3" style="color:#5b6b7f;">No coaches in this rake yet.</td></tr>`}
+      </tbody>
+    </table>
+    <button type="button" class="btn-primary" id="re-save-positions-btn" style="margin-top:0.5rem;">Save Positions</button>
+    <p class="modal-error" id="re-positions-error"></p>
+
+    <h3 style="margin-top:1.2rem;">+ Add Coach to this Rake</h3>
+    <div style="display:flex;gap:0.6rem;flex-wrap:wrap;align-items:flex-end;">
+      <div><label style="display:block;font-size:0.8rem;font-weight:700;">Coach Number</label><input type="text" id="re-new-coach-number" placeholder="e.g. LHB-50231" /></div>
+      <div><label style="display:block;font-size:0.8rem;font-weight:700;">Coach Type</label><input type="text" id="re-new-coach-type" placeholder="e.g. AC 3-Tier" /></div>
+      <div><label style="display:block;font-size:0.8rem;font-weight:700;">Position</label><input type="number" id="re-new-coach-position" min="1" value="${rakeCoaches.length + 1}" style="width:90px;" /></div>
+      <button type="button" class="btn-primary" id="re-add-coach-btn">Add</button>
+    </div>
+    <p class="modal-error" id="re-add-coach-error"></p>
   `);
+
   document.getElementById("rake-edit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
@@ -766,6 +794,43 @@ async function editRake(id) {
       showToast("Rake updated", "success");
       loadRakes();
     } catch (err) { document.getElementById("rake-edit-error").textContent = err.message; }
+  });
+
+  document.getElementById("re-save-positions-btn").addEventListener("click", async () => {
+    const errEl = document.getElementById("re-positions-error");
+    errEl.textContent = "";
+    const rows = [...document.querySelectorAll("#re-positions-table tbody tr[data-coach-id]")];
+    const positions = rows.map((row) => ({
+      coach_id: Number(row.dataset.coachId),
+      position: Number(row.querySelector(".re-position-input").value),
+    }));
+    if (!positions.length) return;
+    try {
+      await apiFetch(`/rakes/${id}/positions`, { method: "PUT", body: JSON.stringify({ positions }) });
+      showToast("Coach positions updated", "success");
+      loadRakes();
+      closeModal();
+    } catch (err) { errEl.textContent = err.message; }
+  });
+
+  document.getElementById("re-add-coach-btn").addEventListener("click", async () => {
+    const errEl = document.getElementById("re-add-coach-error");
+    errEl.textContent = "";
+    const coach_number = document.getElementById("re-new-coach-number").value.trim();
+    const coach_type = document.getElementById("re-new-coach-type").value.trim();
+    const position = Number(document.getElementById("re-new-coach-position").value);
+    if (!coach_number || !coach_type) { errEl.textContent = "Coach number and type are required."; return; }
+    try {
+      await apiFetch("/admin/coaches", {
+        method: "POST",
+        body: JSON.stringify({ coach_number, coach_type, rake_id: id, position }),
+      });
+      showToast("Coach added to rake", "success");
+      COACHES = await apiFetch("/coaches");
+      populateCoachSelectors();
+      await loadRakes();
+      editRake(id); // re-open with the fresh coach list
+    } catch (err) { errEl.textContent = err.message; }
   });
 }
 window.editRake = editRake;
@@ -789,6 +854,9 @@ document.getElementById("add-rake-btn").addEventListener("click", () => {
       <select id="rake-type"><option value="LHB">LHB</option><option value="Vande Bharat">Vande Bharat</option></select>
       <label>Zone</label><input type="text" id="rake-zone" placeholder="e.g. NR" />
       <label>Depot</label><input type="text" id="rake-depot" placeholder="e.g. Ghaziabad" />
+      <label>Total Coaches in this Rake</label>
+      <input type="number" id="rake-total-coaches" min="1" max="24" value="2" />
+      <div id="rake-coach-slots" style="margin-top:0.6rem;"></div>
       <p class="modal-error" id="rake-form-error"></p>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
@@ -796,8 +864,39 @@ document.getElementById("add-rake-btn").addEventListener("click", () => {
       </div>
     </form>
   `);
+
+  function renderRakeCoachSlots() {
+    const total = Math.max(1, Math.min(24, Number(document.getElementById("rake-total-coaches").value) || 1));
+    const container = document.getElementById("rake-coach-slots");
+    // Preserve any already-typed values when the count changes
+    const existing = [...container.querySelectorAll("tr[data-position]")].map((row) => ({
+      coach_number: row.querySelector(".slot-coach-number")?.value || "",
+      coach_type: row.querySelector(".slot-coach-type")?.value || "",
+    }));
+    let rowsHtml = "";
+    for (let pos = 1; pos <= total; pos++) {
+      const prev = existing[pos - 1] || { coach_number: "", coach_type: "" };
+      rowsHtml += `
+        <tr data-position="${pos}">
+          <td style="padding:0.3rem 0.5rem;font-weight:700;">Position ${pos}</td>
+          <td style="padding:0.3rem 0.5rem;"><input type="text" class="slot-coach-number" placeholder="Coach Number e.g. LHB-50231" value="${prev.coach_number}" required style="width:100%;" /></td>
+          <td style="padding:0.3rem 0.5rem;"><input type="text" class="slot-coach-type" placeholder="Coach Type e.g. AC 3-Tier" value="${prev.coach_type}" required style="width:100%;" /></td>
+        </tr>
+      `;
+    }
+    container.innerHTML = `<table class="table"><thead><tr><th>Position</th><th>Coach Number</th><th>Coach Type</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  }
+  renderRakeCoachSlots();
+  document.getElementById("rake-total-coaches").addEventListener("input", renderRakeCoachSlots);
+
   document.getElementById("rake-form").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const slotRows = [...document.querySelectorAll("#rake-coach-slots tr[data-position]")];
+    const coaches = slotRows.map((row) => ({
+      position: Number(row.dataset.position),
+      coach_number: row.querySelector(".slot-coach-number").value.trim(),
+      coach_type: row.querySelector(".slot-coach-type").value.trim(),
+    }));
     try {
       await apiFetch("/rakes", {
         method: "POST",
@@ -806,10 +905,13 @@ document.getElementById("add-rake-btn").addEventListener("click", () => {
           rake_type: document.getElementById("rake-type").value,
           zone: document.getElementById("rake-zone").value.trim(),
           depot: document.getElementById("rake-depot").value.trim(),
+          coaches,
         }),
       });
       closeModal();
-      showToast("Rake created", "success");
+      showToast("Rake created with " + coaches.length + " coach(es)", "success");
+      COACHES = await apiFetch("/coaches");
+      populateCoachSelectors();
       loadRakes();
     } catch (err) { document.getElementById("rake-form-error").textContent = err.message; }
   });
@@ -1216,6 +1318,135 @@ document.getElementById("send-test-email-btn").addEventListener("click", async (
     else { resultEl.style.color = "var(--red)"; resultEl.textContent = "Failed: " + log.detail; }
   } catch (err) { resultEl.style.color = "var(--red)"; resultEl.textContent = err.message; }
 });
+
+// ================= SETTINGS =================
+let bomCache = [];
+
+async function loadSettings() {
+  try {
+    const [ds, bom, coachHw] = await Promise.all([
+      apiFetch("/settings/data-source"),
+      apiFetch("/settings/hardware-bom"),
+      apiFetch("/settings/coach-hardware"),
+    ]);
+    document.getElementById("data-source-select").value = ds.data_source;
+    document.getElementById("data-source-poll-interval").value = ds.poll_interval_seconds;
+
+    bomCache = bom;
+    renderBomTable();
+
+    renderCoachHardwareTable(coachHw);
+  } catch (err) { console.error(err); }
+}
+
+document.getElementById("data-source-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const resultEl = document.getElementById("data-source-result");
+  resultEl.textContent = "";
+  try {
+    const res = await apiFetch("/settings/data-source", {
+      method: "PUT",
+      body: JSON.stringify({
+        data_source: document.getElementById("data-source-select").value,
+        poll_interval_seconds: Number(document.getElementById("data-source-poll-interval").value),
+      }),
+    });
+    resultEl.style.color = "var(--green)";
+    resultEl.textContent = `Saved — data source is now "${res.data_source === "live" ? "Live Hardware Mode" : "Demo Mode"}" (poll every ${res.poll_interval_seconds}s).`;
+    showToast("Data source updated", "success");
+  } catch (err) {
+    resultEl.style.color = "var(--red)";
+    resultEl.textContent = err.message;
+  }
+});
+
+function renderBomTable() {
+  const tbody = document.getElementById("bom-table-body");
+  tbody.innerHTML = bomCache.map((row, idx) => `
+    <tr>
+      <td><input type="text" class="bom-component" data-idx="${idx}" value="${row.component}" style="width:100%;" /></td>
+      <td><input type="text" class="bom-model" data-idx="${idx}" value="${row.model}" style="width:100%;" /></td>
+      <td><input type="number" class="bom-qty" data-idx="${idx}" value="${row.qty_per_coach}" min="0" style="width:80px;" /></td>
+      <td><input type="text" class="bom-purpose" data-idx="${idx}" value="${row.purpose || ""}" style="width:100%;" /></td>
+      <td><button class="btn-danger" type="button" onclick="removeBomRow(${idx})">Remove</button></td>
+    </tr>
+  `).join("") || `<tr><td colspan="5" style="color:#5b6b7f;">No BOM rows yet — add one.</td></tr>`;
+}
+
+function collectBomFromTable() {
+  const rows = [...document.querySelectorAll("#bom-table-body tr")];
+  return rows.map((row) => ({
+    component: row.querySelector(".bom-component")?.value.trim() || "",
+    model: row.querySelector(".bom-model")?.value.trim() || "",
+    qty_per_coach: Number(row.querySelector(".bom-qty")?.value) || 0,
+    purpose: row.querySelector(".bom-purpose")?.value.trim() || "",
+  })).filter((r) => r.component && r.model);
+}
+
+function removeBomRow(idx) {
+  bomCache = collectBomFromTable();
+  bomCache.splice(idx, 1);
+  renderBomTable();
+}
+window.removeBomRow = removeBomRow;
+
+document.getElementById("bom-add-row-btn").addEventListener("click", () => {
+  bomCache = collectBomFromTable();
+  bomCache.push({ component: "", model: "", qty_per_coach: 1, purpose: "" });
+  renderBomTable();
+});
+
+document.getElementById("bom-save-btn").addEventListener("click", async () => {
+  const resultEl = document.getElementById("bom-save-result");
+  resultEl.textContent = "";
+  const bom = collectBomFromTable();
+  try {
+    bomCache = await apiFetch("/settings/hardware-bom", { method: "PUT", body: JSON.stringify({ bom }) });
+    renderBomTable();
+    resultEl.style.color = "var(--green)";
+    resultEl.textContent = "BOM saved.";
+    showToast("Hardware BOM saved", "success");
+  } catch (err) {
+    resultEl.style.color = "var(--red)";
+    resultEl.textContent = err.message;
+  }
+});
+
+function renderCoachHardwareTable(coachHw) {
+  const tbody = document.getElementById("coach-hardware-table-body");
+  tbody.innerHTML = coachHw.map((c) => `
+    <tr data-coach-id="${c.id}">
+      <td><b>${c.coach_number}</b></td>
+      <td><input type="text" class="ch-obcms-ip" value="${c.hardware.obcms_master_ip}" placeholder="e.g. 10.10.10.11" style="width:140px;" /></td>
+      <td><input type="number" class="ch-obcms-port" value="${c.hardware.obcms_master_port}" style="width:80px;" /></td>
+      <td><input type="text" class="ch-piccu-ip" value="${c.hardware.piccu_master_ip}" placeholder="e.g. 10.10.10.12" style="width:140px;" /></td>
+      <td><input type="number" class="ch-piccu-port" value="${c.hardware.piccu_master_port}" style="width:80px;" /></td>
+      <td><input type="text" class="ch-rut200-ip" value="${c.hardware.rut200_ip}" placeholder="e.g. 10.10.10.1" style="width:140px;" /></td>
+      <td><button class="btn-small" type="button" onclick="saveCoachHardware(${c.id})">Save</button></td>
+    </tr>
+  `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">No coaches yet.</td></tr>`;
+}
+
+async function saveCoachHardware(coachId) {
+  const row = document.querySelector(`#coach-hardware-table-body tr[data-coach-id="${coachId}"]`);
+  if (!row) return;
+  try {
+    await apiFetch(`/settings/coach-hardware/${coachId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        obcms_master_ip: row.querySelector(".ch-obcms-ip").value.trim(),
+        obcms_master_port: Number(row.querySelector(".ch-obcms-port").value) || 502,
+        piccu_master_ip: row.querySelector(".ch-piccu-ip").value.trim(),
+        piccu_master_port: Number(row.querySelector(".ch-piccu-port").value) || 502,
+        rut200_ip: row.querySelector(".ch-rut200-ip").value.trim(),
+      }),
+    });
+    showToast("Hardware connectivity saved", "success");
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+window.saveCoachHardware = saveCoachHardware;
 
 // ---------------- Init ----------------
 if (TOKEN && USER) {

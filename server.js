@@ -5,6 +5,7 @@ const path = require("path");
 
 const { init } = require("./db/db");
 const simulator = require("./services/simulator");
+const ingestion = require("./services/ingestion");
 const scheduler = require("./services/scheduler");
 const { requireAuth } = require("./services/auth");
 
@@ -17,6 +18,7 @@ const healthRoutes = require("./routes/health");
 const predictionRoutes = require("./routes/predictions");
 const analyticsRoutes = require("./routes/analytics");
 const reportRoutes = require("./routes/reports");
+const settingsRoutes = require("./routes/settings");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -39,6 +41,7 @@ app.use("/api/health", requireAuth, healthRoutes);
 app.use("/api/predictions", requireAuth, predictionRoutes);
 app.use("/api/analytics", requireAuth, analyticsRoutes);
 app.use("/api/reports", requireAuth, reportRoutes);
+app.use("/api/settings", requireAuth, settingsRoutes);
 
 // Fallback to dashboard index (SPA-style)
 app.use((req, res) => {
@@ -46,12 +49,12 @@ app.use((req, res) => {
 });
 
 init().then(() => {
-  if (DEMO_MODE) {
-    simulator.start();
-    console.log("DEMO_MODE active — simulated OBCMS/PICCU data generator running (interval from Admin > Log Time Setting).");
-  } else {
-    console.log("DEMO_MODE disabled — connect a real Modbus/MQTT ingestion service in services/ingestion.js");
-  }
+  // Both engines run concurrently but each checks db.data.hardware.data_source on every
+  // tick and no-ops unless it's the active one. Switch "Demo" <-> "Live Hardware" any time
+  // from Settings — no redeploy/restart needed once the Balluff/RUT200 hardware is wired up.
+  simulator.start();
+  ingestion.start();
+  console.log(`Data engine ready — current source: ${DEMO_MODE ? "demo (env default)" : "live (env default)"}. Actual mode is controlled from Settings > Data Source and can be switched at runtime.`);
   scheduler.start();
   console.log("Daily report scheduler active — checks every minute against Admin > Notifications > Daily Report Time.");
   app.listen(PORT, () => {

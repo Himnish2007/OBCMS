@@ -57,6 +57,7 @@
       <button class="nav-item" data-view="reports">Reports</button>
       <button class="nav-item" data-view="rakes">Rake Management</button>
       <button class="nav-item admin-only" data-view="admin">Admin</button>
+      <button class="nav-item admin-only" data-view="settings">Settings</button>
     </nav>
     <div class="sidebar-footer">
       <div id="user-name" class="user-name"></div>
@@ -384,6 +385,47 @@
             <button type="submit" class="btn-primary">Save SMS Settings</button>
           </form>
         </div>
+      </div>
+    </section>
+
+    <!-- ===================== SETTINGS ===================== -->
+    <section id="view-settings" class="view hidden">
+      <div class="card">
+        <div class="card-title">Data Source</div>
+        <p class="muted">Demo Mode ke simulated data se Live Hardware Mode par switch karo jab Modbus TCP hardware wire ho jaye — redeploy ki zaroorat nahi, turant switch ho jayega.</p>
+        <form id="data-source-form" class="threshold-form">
+          <label>Active Source</label>
+          <select id="data-source-select">
+            <option value="demo">Demo Mode (simulated data)</option>
+            <option value="live">Live Hardware Mode (Modbus TCP polling)</option>
+          </select>
+          <label>Poll Interval (seconds)</label>
+          <input type="number" id="data-source-poll-interval" min="2" max="3600" step="1" required style="max-width:180px;" />
+          <button type="submit" class="btn-primary">Save Data Source</button>
+        </form>
+        <p id="data-source-result" class="modal-error"></p>
+      </div>
+
+      <div class="card">
+        <div class="card-title-row">
+          <div class="card-title">Hardware Bill of Materials (per coach)</div>
+          <button class="btn-primary" id="bom-add-row-btn" type="button">+ Add Row</button>
+        </div>
+        <table class="table" id="bom-table">
+          <thead><tr><th>Component</th><th>Model</th><th>Qty / Coach</th><th>Purpose</th><th></th></tr></thead>
+          <tbody id="bom-table-body"></tbody>
+        </table>
+        <button class="btn-primary" id="bom-save-btn" style="margin-top:0.6rem;">Save BOM</button>
+        <p id="bom-save-result" class="modal-error"></p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Per-Coach Hardware Connectivity (Modbus TCP)</div>
+        <p class="muted">Har coach ke OBCMS aur PICCU BNI00L1 masters ka IP:Port yahan set karo (RUT200 ke through reachable). Blank IP wale coach ingestion me skip ho jate hain.</p>
+        <table class="table" id="coach-hardware-table">
+          <thead><tr><th>Coach</th><th>OBCMS Master IP</th><th>Port</th><th>PICCU Master IP</th><th>Port</th><th>RUT200 IP</th><th></th></tr></thead>
+          <tbody id="coach-hardware-table-body"></tbody>
+        </table>
       </div>
     </section>
   </main>

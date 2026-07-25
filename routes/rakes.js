@@ -1,5 +1,5 @@
 const express = require("express");
-const { db, save, nextId } = require("../db/db");
+const { db, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS, defaultCoachHardware } = require("../db/db");
 const { requireRole } = require("../services/auth");
 const { coachOverallBand } = require("./coaches");
 const { accessibleCoachIds, getCurrentUser } = require("../services/access");
@@ -23,16 +23,62 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", requireRole(["Admin", "Supervisor"]), async (req, res) => {
-  const { rake_name, rake_type, zone, depot } = req.body || {};
+  const { rake_name, rake_type, zone, depot, coaches } = req.body || {};
   if (!rake_name || !rake_type) return res.status(400).json({ error: "rake_name and rake_type are required" });
   await db.read();
   if (db.data.rakes.some((r) => r.rake_name === rake_name)) {
     return res.status(409).json({ error: "A rake with this name already exists" });
   }
+
+  // Optional: total coaches + their positions, provided right here at rake-creation time
+  if (coaches !== undefined) {
+    if (!Array.isArray(coaches) || !coaches.length) {
+      return res.status(400).json({ error: "coaches must be a non-empty array of { coach_number, coach_type, position }" });
+    }
+    for (const c of coaches) {
+      if (!c.coach_number || !c.coach_type || !c.position) {
+        return res.status(400).json({ error: "Every coach needs coach_number, coach_type and position" });
+      }
+      if (db.data.coaches.some((existing) => existing.coach_number === c.coach_number)) {
+        return res.status(409).json({ error: `Coach number ${c.coach_number} already exists` });
+      }
+    }
+    const numbers = coaches.map((c) => c.coach_number);
+    if (new Set(numbers).size !== numbers.length) return res.status(400).json({ error: "Duplicate coach numbers in the request" });
+    const positions = coaches.map((c) => Number(c.position));
+    if (new Set(positions).size !== positions.length) return res.status(400).json({ error: "Duplicate positions in the request" });
+  }
+
   const rake = { id: nextId(db.data.rakes), rake_name, rake_type, zone: zone || "-", depot: depot || "-" };
   db.data.rakes.push(rake);
+
+  const createdCoaches = [];
+  if (Array.isArray(coaches)) {
+    coaches.forEach((c) => {
+      const coach = {
+        id: nextId(db.data.coaches),
+        coach_number: c.coach_number,
+        rake_id: rake.id,
+        coach_type: c.coach_type,
+        position: Number(c.position),
+        status: "Active",
+        hardware: defaultCoachHardware(),
+      };
+      db.data.coaches.push(coach);
+      for (let axleNo = 1; axleNo <= AXLES_PER_COACH; axleNo++) {
+        db.data.axles.push({ id: nextId(db.data.axles), coach_id: coach.id, axle_number: axleNo });
+      }
+      PICCU_SYSTEMS.forEach((sys) => {
+        db.data.piccuSystems.push({
+          id: nextId(db.data.piccuSystems), coach_id: coach.id, system_name: sys, status: "Online", last_update: new Date().toISOString(),
+        });
+      });
+      createdCoaches.push(coach);
+    });
+  }
+
   await save();
-  res.status(201).json(rake);
+  res.status(201).json({ ...rake, coaches: createdCoaches });
 });
 
 router.put("/:id", requireRole(["Admin", "Supervisor"]), async (req, res) => {
@@ -49,6 +95,34 @@ router.put("/:id", requireRole(["Admin", "Supervisor"]), async (req, res) => {
   if (depot) rake.depot = depot;
   await save();
   res.json(rake);
+});
+
+// Bulk-update coach positions within a rake (used from the Edit Rake modal)
+router.put("/:id/positions", requireRole(["Admin", "Supervisor"]), async (req, res) => {
+  await db.read();
+  const rakeId = Number(req.params.id);
+  const rake = db.data.rakes.find((r) => r.id === rakeId);
+  if (!rake) return res.status(404).json({ error: "Rake not found" });
+  const { positions } = req.body || {};
+  if (!Array.isArray(positions) || !positions.length) {
+    return res.status(400).json({ error: "positions must be a non-empty array of { coach_id, position }" });
+  }
+  const rakeCoaches = db.data.coaches.filter((c) => c.rake_id === rakeId);
+  for (const p of positions) {
+    const coach = rakeCoaches.find((c) => c.id === Number(p.coach_id));
+    if (!coach) return res.status(400).json({ error: `Coach ${p.coach_id} is not part of this rake` });
+    if (!p.position || Number(p.position) < 1) return res.status(400).json({ error: "Every position must be a positive number" });
+  }
+  const newPositions = positions.map((p) => Number(p.position));
+  if (new Set(newPositions).size !== newPositions.length) {
+    return res.status(400).json({ error: "Duplicate positions — each coach in a rake needs a unique position" });
+  }
+  positions.forEach((p) => {
+    const coach = rakeCoaches.find((c) => c.id === Number(p.coach_id));
+    coach.position = Number(p.position);
+  });
+  await save();
+  res.json({ success: true, coaches: rakeCoaches.sort((a, b) => a.position - b.position) });
 });
 
 router.delete("/:id", requireRole("Admin"), async (req, res) => {

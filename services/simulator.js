@@ -23,6 +23,7 @@ function randBetween(min, max) {
 
 async function tick() {
   await db.read();
+  if ((db.data.hardware && db.data.hardware.data_source) !== "demo") return; // Settings > Data Source is set to Live — let ingestion.js drive data instead
   const now = new Date().toISOString();
   const thresholds = db.data.thresholds;
 
@@ -171,4 +172,4 @@ function stop() {
   if (timer) clearTimeout(timer);
 }
 
-module.exports = { start, stop, tick };
+module.exports = { start, stop, tick, bandFor, worstBand };

@@ -1,6 +1,6 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const { db, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS } = require("../db/db");
+const { db, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS, defaultCoachHardware } = require("../db/db");
 const { requireRole } = require("../services/auth");
 const { sendEmail } = require("../services/mailer");
 
@@ -90,6 +90,7 @@ router.post("/coaches", requireRole(["Admin", "Supervisor"]), async (req, res) =
     coach_type,
     position: position || (Math.max(0, ...db.data.coaches.filter((c) => c.rake_id === rake.id).map((c) => c.position || 0)) + 1),
     status: status || "Active",
+    hardware: defaultCoachHardware(),
   };
   db.data.coaches.push(coach);
 

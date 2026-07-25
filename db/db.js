@@ -50,6 +50,21 @@ const defaultData = {
       sender_id: "",
     },
   },
+  hardware: {
+    // "demo" = services/simulator.js generates data. "live" = services/ingestion.js polls
+    // real Modbus TCP hardware per-coach (see coach.hardware below). Switchable at runtime
+    // from the Settings page — no redeploy needed to go live once hardware is wired up.
+    data_source: "demo",
+    poll_interval_seconds: 10,
+    bom: [
+      { id: 1, component: "Axle Vibration + Temperature Sensor", model: "Balluff BCM0004", qty_per_coach: 8, purpose: "OBCMS — per-axle vibration & temperature (IO-Link)" },
+      { id: 2, component: "OBCMS IO-Link Master", model: "Balluff BNI00L1", qty_per_coach: 1, purpose: "Aggregates 8x axle sensors, Modbus TCP out to RUT200" },
+      { id: 3, component: "PICCU Subsystem Status (digital)", model: "Existing relay/PNP signals -> BNI00L1 digital inputs", qty_per_coach: 13, purpose: "13 PICCU subsystem Online/Fault status" },
+      { id: 4, component: "PICCU IO-Link Master", model: "Balluff BNI00L1 (2nd unit)", qty_per_coach: 1, purpose: "PICCU subsystem status + analog telemetry aggregation" },
+      { id: 5, component: "Analog Telemetry Hub", model: "Balluff BNI00AJ", qty_per_coach: 1, purpose: "HVAC / Battery / WLI tank level — analog to IO-Link conversion" },
+      { id: 6, component: "Cellular Backhaul Router", model: "Teltonika RUT200", qty_per_coach: 1, purpose: "Modbus TCP polling of both masters + cellular uplink to Railway.app" },
+    ],
+  },
   meta: { seeded: false },
 };
 
@@ -82,6 +97,19 @@ function nextId(arr) {
   return arr.length ? Math.max(...arr.map((x) => x.id)) + 1 : 1;
 }
 
+// Per-coach Modbus TCP connectivity for the two BNI00L1 IO-Link masters (OBCMS + PICCU)
+// plus the RUT200 that backhauls them. Left blank until the hardware is physically wired —
+// the ingestion service simply skips a coach whose IPs are not yet filled in.
+function defaultCoachHardware() {
+  return {
+    obcms_master_ip: "",
+    obcms_master_port: 502,
+    piccu_master_ip: "",
+    piccu_master_port: 502,
+    rut200_ip: "",
+  };
+}
+
 async function init() {
   await db.read();
   db.data ||= structuredClone(defaultData);
@@ -95,6 +123,11 @@ async function init() {
   db.data.notificationLog ||= [];
   db.data.rakes ||= [];
   db.data.axles ||= [];
+  db.data.hardware ||= structuredClone(defaultData.hardware);
+  db.data.hardware.bom ||= structuredClone(defaultData.hardware.bom);
+  if (db.data.hardware.data_source === undefined) db.data.hardware.data_source = "demo";
+  if (db.data.hardware.poll_interval_seconds === undefined) db.data.hardware.poll_interval_seconds = 10;
+  db.data.coaches.forEach((c) => { c.hardware ||= defaultCoachHardware(); });
   db.data.users.forEach((u) => {
     if (u.assigned_coaches === undefined) u.assigned_coaches = [];
     if (u.email === undefined) u.email = "";
@@ -102,6 +135,8 @@ async function init() {
   });
 
   if (!db.data.meta.seeded) {
+    db.data.hardware.data_source = (process.env.DEMO_MODE || "true") === "true" ? "demo" : "live";
+
     // Users — Admin, Supervisor, Viewer
     const mkUser = (id, username, password, role, name, email, phone, assigned_coaches) => ({
       id, username, passwordHash: bcrypt.hashSync(password, 8), role, name, email, phone, assigned_coaches,
@@ -130,6 +165,7 @@ async function init() {
         coach_type: c.coach_type,
         position: c.position,
         status: "Active",
+        hardware: defaultCoachHardware(),
       });
 
       for (let axleNo = 1; axleNo <= AXLES_PER_COACH; axleNo++) {
@@ -161,4 +197,4 @@ async function save() {
   await db.write();
 }
 
-module.exports = { db, init, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS };
+module.exports = { db, init, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS, defaultCoachHardware };
