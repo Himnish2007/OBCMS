@@ -181,3 +181,110 @@ body {
   .sensor-grid { grid-template-columns: repeat(2, 1fr); }
   .piccu-grid, .telemetry-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------- Visibility helpers (role-based) ---------- */
+.admin-only, .admin-supervisor-only { display: none; }
+body.role-Admin .admin-only,
+body.role-Admin .admin-supervisor-only,
+body.role-Supervisor .admin-supervisor-only { display: inline-flex; }
+.nav-item.admin-only { display: none; }
+body.role-Admin .nav-item.admin-only { display: block; }
+
+/* ---------- Buttons ---------- */
+.btn-primary {
+  background: var(--orange); color: #fff; border: none; padding: 0.55rem 1rem; border-radius: 8px;
+  font-weight: 700; font-size: 0.85rem; cursor: pointer;
+}
+.btn-primary:hover { background: #d24f0b; }
+.btn-secondary {
+  background: var(--navy); color: #fff; border: none; padding: 0.55rem 1rem; border-radius: 8px;
+  font-weight: 700; font-size: 0.85rem; cursor: pointer;
+}
+.btn-secondary:hover { background: var(--navy-dark); }
+.btn-danger { background: var(--red); color: #fff; border: none; padding: 0.3rem 0.65rem; border-radius: 6px; font-size: 0.72rem; cursor: pointer; }
+.btn-danger:hover { background: #a5321f; }
+
+/* ---------- Modal ---------- */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(6,42,86,0.55); display: flex; align-items: center;
+  justify-content: center; z-index: 1000;
+}
+.modal-box {
+  background: #fff; border-radius: 14px; padding: 1.8rem 2rem; width: 440px; max-width: 92vw;
+  max-height: 88vh; overflow-y: auto; box-shadow: 0 25px 60px rgba(0,0,0,0.35);
+}
+.modal-box h3 { margin: 0 0 1rem; color: var(--navy-dark); font-size: 1.15rem; }
+.modal-box label { font-size: 0.8rem; font-weight: 700; color: var(--text-muted); display: block; margin: 0.6rem 0 0.25rem; }
+.modal-box input, .modal-box select {
+  width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem;
+}
+.modal-actions { display: flex; gap: 0.6rem; margin-top: 1.4rem; justify-content: flex-end; }
+.modal-error { color: var(--red); font-size: 0.8rem; margin-top: 0.6rem; min-height: 1rem; }
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--navy-dark); color: #fff;
+  padding: 0.8rem 1.2rem; border-radius: 10px; font-size: 0.85rem; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  z-index: 1100; max-width: 340px;
+}
+.toast.success { background: var(--green); }
+.toast.error { background: var(--red); }
+
+/* ---------- Sub tabs (Admin) ---------- */
+.sub-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.2rem; flex-wrap: wrap; }
+.sub-tab {
+  background: var(--card-bg); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: 8px;
+  font-size: 0.85rem; font-weight: 700; cursor: pointer; color: var(--text-muted);
+}
+.sub-tab.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+/* ---------- Threshold / settings forms ---------- */
+.threshold-form { display: flex; flex-direction: column; gap: 0.5rem; max-width: 480px; }
+.threshold-group { border: 1px solid var(--border); border-radius: 10px; padding: 0.9rem 1rem; margin-bottom: 0.7rem; }
+.threshold-group h4 { margin: 0 0 0.5rem; color: var(--navy-dark); font-size: 0.9rem; }
+.threshold-group label { font-size: 0.78rem; font-weight: 600; color: var(--text-muted); margin-top: 0.4rem; display: block; }
+.threshold-group input { width: 100%; padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; margin-top: 0.2rem; }
+#logsettings-form label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); }
+#logsettings-form input { padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; margin: 0.4rem 0 0.9rem; max-width: 220px; }
+
+/* ---------- Info banner ---------- */
+.info-banner {
+  background: #fff4e9; border: 1px solid #f4c99a; color: #8a4a10; padding: 0.8rem 1.1rem;
+  border-radius: 10px; font-size: 0.82rem; margin-bottom: 1.1rem;
+}
+
+/* ---------- Analytics grid ---------- */
+.analytics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 1100px) { .analytics-grid { grid-template-columns: 1fr; } }
+
+/* ---------- Rake cards ---------- */
+.rake-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem 1.3rem; margin-bottom: 1rem; }
+.rake-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
+.rake-title { font-weight: 800; color: var(--navy-dark); font-size: 1.05rem; }
+.rake-meta { font-size: 0.78rem; color: var(--text-muted); }
+.rake-type-tag { padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.7rem; font-weight: 700; }
+.rake-type-tag.LHB { background: #e3ecfb; color: var(--navy); }
+.rake-type-tag.VandeBharat, .rake-type-tag.VandeBharat_ { background: #fdeee5; color: var(--orange); }
+.rake-coach-list { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.rake-coach-chip {
+  border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.8rem; font-size: 0.78rem; min-width: 140px;
+  display: flex; flex-direction: column; gap: 0.2rem;
+}
+.rake-coach-chip .coach-no { font-weight: 700; }
+
+/* ---------- Health heatmap ---------- */
+.axle-heatmap { display: flex; gap: 0.3rem; }
+.axle-cell {
+  width: 26px; height: 26px; border-radius: 5px; display: flex; align-items: center; justify-content: center;
+  font-size: 0.65rem; font-weight: 700; color: #fff;
+}
+.axle-cell.GREEN { background: var(--green); }
+.axle-cell.YELLOW { background: var(--yellow); }
+.axle-cell.ORANGE { background: var(--orange); }
+.axle-cell.RED { background: var(--red); }
+.health-score-pill { padding: 0.25rem 0.7rem; border-radius: 20px; font-weight: 800; font-size: 0.85rem; color: #fff; display: inline-block; }
+
+/* ---------- Report actions ---------- */
+.report-actions { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+.report-actions select { padding: 0.5rem 0.7rem; border-radius: 8px; border: 1px solid var(--border); }
+

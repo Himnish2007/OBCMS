@@ -16,22 +16,27 @@ const adapter = new JSONFile(file);
 
 const defaultData = {
   users: [],
+  rakes: [],
   coaches: [],
-  sensors: [],
+  axles: [],
   readings: [],
   alerts: [],
   piccuSystems: [],
   piccuTelemetry: [],
+  coachSwapLog: [],
+  thresholds: {
+    vibration: { yellow: 150, orange: 250, red: 380 }, // g
+    temperature: { yellow: 70, orange: 90, red: 105 }, // °C
+  },
+  settings: {
+    log_interval_seconds: 8,
+  },
   meta: { seeded: false },
 };
 
 const db = new Low(adapter, defaultData);
 
-const SENSOR_TYPES = ["bearing", "suspension", "wheel", "track"];
-const SENSOR_LOCATIONS = [
-  "Axle1-DE", "Axle1-NDE", "Axle2-DE", "Axle2-NDE",
-  "Axle3-DE", "Axle3-NDE", "Axle4-DE", "Axle4-NDE",
-];
+const AXLES_PER_COACH = 8;
 
 const PICCU_SYSTEMS = [
   "PAPIS & Infotainment", "WLI", "CCTV", "OBCMS",
@@ -39,13 +44,19 @@ const PICCU_SYSTEMS = [
   "RMPU", "EPPFS", "ETBU", "Battery Charger", "Network & Electrical",
 ];
 
+const RAKE_SEED = [
+  { rake_name: "RAKE-12A", rake_type: "LHB", zone: "NR", depot: "Ghaziabad" },
+  { rake_name: "RAKE-07C", rake_type: "LHB", zone: "NCR", depot: "Kanpur" },
+  { rake_name: "VB-RAKE-03", rake_type: "Vande Bharat", zone: "WR", depot: "Mumbai Central" },
+];
+
 const COACH_SEED = [
-  { coach_number: "LHB-29045", rake_id: "RAKE-12A", depot: "Ghaziabad", zone: "NR", coach_type: "AC 3-Tier" },
-  { coach_number: "LHB-29112", rake_id: "RAKE-12A", depot: "Ghaziabad", zone: "NR", coach_type: "Sleeper" },
-  { coach_number: "LHB-31207", rake_id: "RAKE-07C", depot: "Kanpur", zone: "NCR", coach_type: "AC 2-Tier" },
-  { coach_number: "LHB-31288", rake_id: "RAKE-07C", depot: "Kanpur", zone: "NCR", coach_type: "General" },
-  { coach_number: "LHB-40561", rake_id: "RAKE-19B", depot: "Mumbai Central", zone: "WR", coach_type: "AC 3-Tier" },
-  { coach_number: "LHB-40602", rake_id: "RAKE-19B", depot: "Mumbai Central", zone: "WR", coach_type: "Pantry" },
+  { coach_number: "LHB-29045", rake_name: "RAKE-12A", coach_type: "AC 3-Tier", position: 1 },
+  { coach_number: "LHB-29112", rake_name: "RAKE-12A", coach_type: "Sleeper", position: 2 },
+  { coach_number: "LHB-31207", rake_name: "RAKE-07C", coach_type: "AC 2-Tier", position: 1 },
+  { coach_number: "LHB-31288", rake_name: "RAKE-07C", coach_type: "General", position: 2 },
+  { coach_number: "VB-40561", rake_name: "VB-RAKE-03", coach_type: "Executive Chair Car", position: 1 },
+  { coach_number: "VB-40602", rake_name: "VB-RAKE-03", coach_type: "Chair Car", position: 2 },
 ];
 
 function nextId(arr) {
@@ -55,31 +66,51 @@ function nextId(arr) {
 async function init() {
   await db.read();
   db.data ||= structuredClone(defaultData);
+  db.data.thresholds ||= structuredClone(defaultData.thresholds);
+  db.data.settings ||= structuredClone(defaultData.settings);
+  db.data.coachSwapLog ||= [];
+  db.data.rakes ||= [];
+  db.data.axles ||= [];
 
   if (!db.data.meta.seeded) {
-    // Admin user
-    const passwordHash = bcrypt.hashSync("Himnish@123", 8);
-    db.data.users.push({
-      id: 1, username: "admin", passwordHash, role: "Admin", name: "Piyush Tyagi",
+    // Users — Admin, Supervisor, Viewer
+    const mkUser = (id, username, password, role, name) => ({
+      id, username, passwordHash: bcrypt.hashSync(password, 8), role, name,
+    });
+    db.data.users.push(
+      mkUser(1, "admin", "Himnish@123", "Admin", "Piyush Tyagi"),
+      mkUser(2, "supervisor", "Himnish@123", "Supervisor", "Depot Supervisor"),
+      mkUser(3, "viewer", "Himnish@123", "Viewer", "Zonal Viewer")
+    );
+
+    // Rakes
+    const rakeIdByName = {};
+    RAKE_SEED.forEach((r) => {
+      const id = nextId(db.data.rakes);
+      db.data.rakes.push({ id, ...r });
+      rakeIdByName[r.rake_name] = id;
     });
 
-    // Coaches
-    COACH_SEED.forEach((c, idx) => {
-      const coachId = idx + 1;
-      db.data.coaches.push({ id: coachId, ...c });
-
-      // Sensors per coach
-      SENSOR_LOCATIONS.forEach((loc, sIdx) => {
-        db.data.sensors.push({
-          id: nextId(db.data.sensors),
-          coach_id: coachId,
-          code: `${c.coach_number}-S${sIdx + 1}`,
-          location: loc,
-          type: SENSOR_TYPES[sIdx % SENSOR_TYPES.length],
-        });
+    // Coaches + Axles
+    COACH_SEED.forEach((c) => {
+      const coachId = nextId(db.data.coaches);
+      db.data.coaches.push({
+        id: coachId,
+        coach_number: c.coach_number,
+        rake_id: rakeIdByName[c.rake_name],
+        coach_type: c.coach_type,
+        position: c.position,
+        status: "Active",
       });
 
-      // PICCU systems per coach
+      for (let axleNo = 1; axleNo <= AXLES_PER_COACH; axleNo++) {
+        db.data.axles.push({
+          id: nextId(db.data.axles),
+          coach_id: coachId,
+          axle_number: axleNo,
+        });
+      }
+
       PICCU_SYSTEMS.forEach((sys) => {
         db.data.piccuSystems.push({
           id: nextId(db.data.piccuSystems),
@@ -101,4 +132,4 @@ async function save() {
   await db.write();
 }
 
-module.exports = { db, init, save, nextId, SENSOR_TYPES, SENSOR_LOCATIONS, PICCU_SYSTEMS };
+module.exports = { db, init, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS };

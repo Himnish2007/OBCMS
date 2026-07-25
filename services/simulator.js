@@ -1,65 +1,72 @@
 const { db, save, nextId } = require("../db/db");
 
-const MAX_READINGS_PER_SENSOR = 40;
+const MAX_READINGS_PER_AXLE = 40;
 const MAX_TELEMETRY_PER_PARAM = 30;
 
-function bandFromVibration(g) {
-  if (g < 150) return "GREEN";
-  if (g < 250) return "YELLOW";
-  if (g < 380) return "ORANGE";
+const BAND_ORDER = ["GREEN", "YELLOW", "ORANGE", "RED"];
+
+function bandFor(value, t) {
+  if (value < t.yellow) return "GREEN";
+  if (value < t.orange) return "YELLOW";
+  if (value < t.red) return "ORANGE";
   return "RED";
+}
+
+function worstBand(a, b) {
+  return BAND_ORDER.indexOf(a) >= BAND_ORDER.indexOf(b) ? a : b;
 }
 
 function randBetween(min, max) {
   return min + Math.random() * (max - min);
 }
 
-function pickBiasedSensorIndexes(total) {
-  // Occasionally bias one sensor towards deterioration to create realistic alerts
-  if (Math.random() < 0.12) {
-    return Math.floor(Math.random() * total);
-  }
-  return -1;
-}
-
 async function tick() {
   await db.read();
   const now = new Date().toISOString();
+  const thresholds = db.data.thresholds;
 
   const coaches = db.data.coaches;
   coaches.forEach((coach) => {
-    const sensors = db.data.sensors.filter((s) => s.coach_id === coach.id);
-    const biasedIdx = pickBiasedSensorIndexes(sensors.length);
+    const axles = db.data.axles.filter((a) => a.coach_id === coach.id);
+    // Occasionally bias one axle towards deterioration to create realistic alerts
+    const biasedIdx = Math.random() < 0.12 ? Math.floor(Math.random() * axles.length) : -1;
 
-    sensors.forEach((sensor, idx) => {
-      let vibration;
+    axles.forEach((axle, idx) => {
+      let vibration, temperature;
       if (idx === biasedIdx) {
-        vibration = randBetween(260, 480); // push towards Orange/Red occasionally
+        vibration = randBetween(260, 480);
+        temperature = randBetween(88, 112);
       } else {
-        vibration = randBetween(20, 180); // mostly healthy
+        vibration = randBetween(20, 180);
+        temperature = randBetween(28, 68);
       }
-      const temperature = randBetween(28, 78) + (vibration > 300 ? randBetween(5, 20) : 0);
-      const band = bandFromVibration(vibration);
       const speed = randBetween(0, 130);
+
+      const vibBand = bandFor(vibration, thresholds.vibration);
+      const tempBand = bandFor(temperature, thresholds.temperature);
+      const band = worstBand(vibBand, tempBand);
 
       const reading = {
         id: nextId(db.data.readings),
-        sensor_id: sensor.id,
+        axle_id: axle.id,
         coach_id: coach.id,
+        axle_number: axle.axle_number,
         ts: now,
         vibration_g: Number(vibration.toFixed(1)),
         temperature_c: Number(temperature.toFixed(1)),
         speed_kmph: Number(speed.toFixed(0)),
+        vibration_band: vibBand,
+        temperature_band: tempBand,
         band,
       };
       db.data.readings.push(reading);
 
-      // Trim history per sensor
-      const sensorReadings = db.data.readings.filter((r) => r.sensor_id === sensor.id);
-      if (sensorReadings.length > MAX_READINGS_PER_SENSOR) {
-        const excess = sensorReadings
+      // Trim history per axle
+      const axleReadings = db.data.readings.filter((r) => r.axle_id === axle.id);
+      if (axleReadings.length > MAX_READINGS_PER_AXLE) {
+        const excess = axleReadings
           .sort((a, b) => new Date(a.ts) - new Date(b.ts))
-          .slice(0, sensorReadings.length - MAX_READINGS_PER_SENSOR)
+          .slice(0, axleReadings.length - MAX_READINGS_PER_AXLE)
           .map((r) => r.id);
         db.data.readings = db.data.readings.filter((r) => !excess.includes(r.id));
       }
@@ -67,16 +74,19 @@ async function tick() {
       // Raise alert for Orange/Red bands
       if (band === "ORANGE" || band === "RED") {
         const openAlert = db.data.alerts.find(
-          (a) => a.sensor_id === sensor.id && !a.acknowledged && a.band === band
+          (a) => a.axle_id === axle.id && !a.acknowledged && a.band === band
         );
         if (!openAlert) {
+          const causedBy = vibBand === band ? "vibration" : "temperature";
           db.data.alerts.push({
             id: nextId(db.data.alerts),
             coach_id: coach.id,
-            sensor_id: sensor.id,
+            axle_id: axle.id,
+            axle_number: axle.axle_number,
             severity: band === "RED" ? "Critical" : "High",
             band,
-            message: `${sensor.type.toUpperCase()} anomaly detected at ${sensor.location} (${coach.coach_number}) — vibration ${reading.vibration_g}g, temp ${reading.temperature_c}°C.`,
+            parameter: causedBy,
+            message: `Axle-${axle.axle_number} anomaly on ${coach.coach_number} — vibration ${reading.vibration_g}g, temp ${reading.temperature_c}°C (driven by ${causedBy}).`,
             created_at: now,
             acknowledged: false,
           });
@@ -118,15 +128,11 @@ async function tick() {
     if (Math.random() < 0.02) {
       const systems = db.data.piccuSystems.filter((p) => p.coach_id === coach.id);
       const target = systems[Math.floor(Math.random() * systems.length)];
-      target.status = Math.random() < 0.5 ? "Fault" : "Offline";
-      target.last_update = now;
+      if (target) { target.status = Math.random() < 0.5 ? "Fault" : "Offline"; target.last_update = now; }
     } else {
       const systems = db.data.piccuSystems.filter((p) => p.coach_id === coach.id && p.status !== "Online");
       systems.forEach((s) => {
-        if (Math.random() < 0.3) {
-          s.status = "Online";
-          s.last_update = now;
-        }
+        if (Math.random() < 0.3) { s.status = "Online"; s.last_update = now; }
       });
     }
   });
@@ -134,11 +140,30 @@ async function tick() {
   await save();
 }
 
-function start(intervalMs = 8000) {
-  tick(); // run once immediately
-  return setInterval(() => {
-    tick().catch((err) => console.error("Simulator tick error:", err.message));
-  }, intervalMs);
+let timer = null;
+let running = false;
+
+async function loop() {
+  if (!running) return;
+  try {
+    await tick();
+  } catch (err) {
+    console.error("Simulator tick error:", err.message);
+  }
+  await db.read();
+  const intervalMs = Math.max(2, Number(db.data.settings.log_interval_seconds) || 8) * 1000;
+  timer = setTimeout(loop, intervalMs);
 }
 
-module.exports = { start, tick };
+function start() {
+  if (running) return;
+  running = true;
+  loop();
+}
+
+function stop() {
+  running = false;
+  if (timer) clearTimeout(timer);
+}
+
+module.exports = { start, stop, tick };

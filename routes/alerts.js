@@ -8,8 +8,13 @@ router.get("/", async (req, res) => {
   const { status } = req.query;
   let alerts = db.data.alerts.map((a) => {
     const coach = db.data.coaches.find((c) => c.id === a.coach_id);
-    const sensor = db.data.sensors.find((s) => s.id === a.sensor_id);
-    return { ...a, coach_number: coach ? coach.coach_number : "-", sensor_location: sensor ? sensor.location : "-" };
+    const rake = coach ? db.data.rakes.find((r) => r.id === coach.rake_id) : null;
+    return {
+      ...a,
+      coach_number: coach ? coach.coach_number : "-",
+      rake_name: rake ? rake.rake_name : "-",
+      axle_label: a.axle_number ? `Axle-${a.axle_number}` : "-",
+    };
   });
   if (status === "open") alerts = alerts.filter((a) => !a.acknowledged);
   if (status === "acknowledged") alerts = alerts.filter((a) => a.acknowledged);

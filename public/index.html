@@ -24,9 +24,17 @@
       <button type="submit">Sign In</button>
       <p id="login-error" class="error-text"></p>
     </form>
-    <p class="demo-hint">Demo credentials pre-filled — DEMO_MODE generates live simulated sensor &amp; PICCU data.</p>
+    <p class="demo-hint">Demo logins — admin / supervisor / viewer (password: Himnish@123)</p>
   </div>
 </div>
+
+<!-- ============ MODAL ============ -->
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div class="modal-box" id="modal-box"></div>
+</div>
+
+<!-- ============ TOAST ============ -->
+<div id="toast" class="toast hidden"></div>
 
 <!-- ============ APP SHELL ============ -->
 <div id="app" class="app hidden">
@@ -42,7 +50,13 @@
       <button class="nav-item active" data-view="overview">Fleet Overview</button>
       <button class="nav-item" data-view="obcms">OBCMS</button>
       <button class="nav-item" data-view="piccu">PICCU</button>
+      <button class="nav-item" data-view="health">Health</button>
+      <button class="nav-item" data-view="prediction">Prediction</button>
+      <button class="nav-item" data-view="analytics">Analytics</button>
       <button class="nav-item" data-view="alerts">Alerts</button>
+      <button class="nav-item" data-view="reports">Reports</button>
+      <button class="nav-item" data-view="rakes">Rake Management</button>
+      <button class="nav-item admin-only" data-view="admin">Admin</button>
     </nav>
     <div class="sidebar-footer">
       <div id="user-name" class="user-name"></div>
@@ -61,11 +75,11 @@
       </div>
     </header>
 
-    <!-- FLEET OVERVIEW -->
+    <!-- ===================== FLEET OVERVIEW ===================== -->
     <section id="view-overview" class="view">
       <div class="kpi-grid">
         <div class="kpi-card"><div class="kpi-label">Total Coaches</div><div class="kpi-value" id="kpi-coaches">-</div></div>
-        <div class="kpi-card"><div class="kpi-label">Total Sensors</div><div class="kpi-value" id="kpi-sensors">-</div></div>
+        <div class="kpi-card"><div class="kpi-label">Total Rakes</div><div class="kpi-value" id="kpi-rakes">-</div></div>
         <div class="kpi-card alert"><div class="kpi-label">Open Alerts</div><div class="kpi-value" id="kpi-alerts">-</div></div>
         <div class="kpi-card warn"><div class="kpi-label">PICCU Faults</div><div class="kpi-value" id="kpi-piccu">-</div></div>
       </div>
@@ -81,14 +95,14 @@
         <div class="card-title">Fleet — Coach Wise Status</div>
         <table class="table" id="fleet-table">
           <thead>
-            <tr><th>Coach No.</th><th>Type</th><th>Rake</th><th>Depot / Zone</th><th>Health Band</th><th>Open Alerts</th><th>PICCU Faults</th><th></th></tr>
+            <tr><th>Coach No.</th><th>Type</th><th>Rake</th><th>Health Band</th><th>Open Alerts</th><th>PICCU Faults</th><th></th></tr>
           </thead>
           <tbody id="fleet-table-body"></tbody>
         </table>
       </div>
     </section>
 
-    <!-- OBCMS VIEW -->
+    <!-- ===================== OBCMS ===================== -->
     <section id="view-obcms" class="view hidden">
       <div class="coach-selector">
         <label>Select Coach:</label>
@@ -96,19 +110,19 @@
       </div>
       <div class="sensor-grid" id="obcms-sensor-grid"></div>
       <div class="card">
-        <div class="card-title">Vibration Trend — Selected Sensor</div>
+        <div class="card-title">Vibration &amp; Temperature Trend — Selected Axle</div>
         <canvas id="obcms-chart" height="90"></canvas>
       </div>
       <div class="card">
         <div class="card-title">Recent Alerts — This Coach</div>
         <table class="table" id="obcms-alerts-table">
-          <thead><tr><th>Time</th><th>Sensor</th><th>Severity</th><th>Message</th><th>Status</th></tr></thead>
+          <thead><tr><th>Time</th><th>Axle</th><th>Severity</th><th>Message</th><th>Status</th></tr></thead>
           <tbody id="obcms-alerts-body"></tbody>
         </table>
       </div>
     </section>
 
-    <!-- PICCU VIEW -->
+    <!-- ===================== PICCU ===================== -->
     <section id="view-piccu" class="view hidden">
       <div class="coach-selector">
         <label>Select Coach:</label>
@@ -124,7 +138,59 @@
       </div>
     </section>
 
-    <!-- ALERTS VIEW -->
+    <!-- ===================== HEALTH ===================== -->
+    <section id="view-health" class="view hidden">
+      <div class="card">
+        <div class="card-title">Fleet Health Matrix — 8-Axle Heatmap per Coach</div>
+        <table class="table" id="health-table">
+          <thead><tr><th>Coach</th><th>Rake</th><th>Health Score</th><th>Axle Heatmap (1–8)</th></tr></thead>
+          <tbody id="health-table-body"></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">Worst Performing Axles (Fleet-Wide)</div>
+        <table class="table" id="worst-axles-table">
+          <thead><tr><th>Coach</th><th>Axle</th><th>Band</th><th>Vibration (g)</th><th>Temp (°C)</th><th>Last Update</th></tr></thead>
+          <tbody id="worst-axles-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===================== PREDICTION ===================== -->
+    <section id="view-prediction" class="view hidden">
+      <div class="info-banner" id="prediction-note"></div>
+      <div class="card">
+        <div class="card-title">Predicted Time to Next Threshold Breach</div>
+        <table class="table" id="prediction-table">
+          <thead><tr><th>Coach</th><th>Axle</th><th>Current Band</th><th>Vibration Trend</th><th>Temp Trend</th><th>Driven By</th><th>Est. Time to Breach</th></tr></thead>
+          <tbody id="prediction-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===================== ANALYTICS ===================== -->
+    <section id="view-analytics" class="view hidden">
+      <div class="analytics-grid">
+        <div class="card">
+          <div class="card-title">Fleet-Wide Condition Band Distribution</div>
+          <canvas id="chart-band-dist" height="180"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title">LHB vs Vande Bharat — Avg Vibration &amp; Temperature</div>
+          <canvas id="chart-rake-comparison" height="180"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title">Top Alert-Prone Coaches</div>
+          <canvas id="chart-top-alerts" height="180"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-title">Alert Trend (Recent)</div>
+          <canvas id="chart-alert-trend" height="180"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== ALERTS ===================== -->
     <section id="view-alerts" class="view hidden">
       <div class="card">
         <div class="card-title-row">
@@ -136,9 +202,109 @@
           </div>
         </div>
         <table class="table" id="alerts-table">
-          <thead><tr><th>Time</th><th>Coach</th><th>Location</th><th>Severity</th><th>Message</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Time</th><th>Coach</th><th>Axle</th><th>Severity</th><th>Message</th><th>Status</th><th></th></tr></thead>
           <tbody id="alerts-table-body"></tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- ===================== REPORTS ===================== -->
+    <section id="view-reports" class="view hidden">
+      <div class="kpi-grid" id="reports-summary-grid"></div>
+      <div class="card">
+        <div class="card-title">Export Data</div>
+        <div class="report-actions">
+          <label>Filter by coach (optional):</label>
+          <select id="reports-coach-select"><option value="">All Coaches</option></select>
+          <button class="btn-primary" id="download-readings-csv">Download Readings CSV</button>
+          <button class="btn-primary" id="download-alerts-csv">Download Alerts CSV</button>
+          <button class="btn-secondary" id="print-summary">Print Summary Report</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== RAKE MANAGEMENT ===================== -->
+    <section id="view-rakes" class="view hidden">
+      <div class="card-title-row" style="margin-bottom:0.8rem;">
+        <div></div>
+        <div>
+          <button class="btn-primary admin-supervisor-only" id="add-rake-btn">+ Add Rake</button>
+          <button class="btn-secondary admin-supervisor-only" id="swap-coach-btn">Swap Coach</button>
+        </div>
+      </div>
+      <div id="rakes-container"></div>
+      <div class="card">
+        <div class="card-title">Coach Swap Log</div>
+        <table class="table" id="swap-log-table">
+          <thead><tr><th>Time</th><th>Coach</th><th>From Rake</th><th>To Rake</th><th>Reason</th><th>By</th></tr></thead>
+          <tbody id="swap-log-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===================== ADMIN ===================== -->
+    <section id="view-admin" class="view hidden">
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-subtab="users">Users</button>
+        <button class="sub-tab" data-subtab="coaches">Coaches</button>
+        <button class="sub-tab" data-subtab="thresholds">Alert Thresholds</button>
+        <button class="sub-tab" data-subtab="logsettings">Log Time Setting</button>
+      </div>
+
+      <div id="admin-users" class="sub-view">
+        <div class="card-title-row">
+          <div class="card-title">User Management</div>
+          <button class="btn-primary" id="add-user-btn">+ Add User</button>
+        </div>
+        <table class="table" id="users-table">
+          <thead><tr><th>Username</th><th>Name</th><th>Role</th><th></th></tr></thead>
+          <tbody id="users-table-body"></tbody>
+        </table>
+      </div>
+
+      <div id="admin-coaches" class="sub-view hidden">
+        <div class="card-title-row">
+          <div class="card-title">Coach Management</div>
+          <button class="btn-primary" id="add-coach-btn">+ Add Coach</button>
+        </div>
+        <table class="table" id="admin-coaches-table">
+          <thead><tr><th>Coach No.</th><th>Rake</th><th>Type</th><th>Status</th><th></th></tr></thead>
+          <tbody id="admin-coaches-table-body"></tbody>
+        </table>
+      </div>
+
+      <div id="admin-thresholds" class="sub-view hidden">
+        <div class="card">
+          <div class="card-title">Alert Band Thresholds</div>
+          <p class="muted">Condition band is the worse of the vibration band and temperature band. Values must increase Yellow &lt; Orange &lt; Red.</p>
+          <form id="thresholds-form" class="threshold-form">
+            <div class="threshold-group">
+              <h4>Vibration (g)</h4>
+              <label>Yellow ≥</label><input type="number" id="th-vib-yellow" step="1" required />
+              <label>Orange ≥</label><input type="number" id="th-vib-orange" step="1" required />
+              <label>Red ≥</label><input type="number" id="th-vib-red" step="1" required />
+            </div>
+            <div class="threshold-group">
+              <h4>Temperature (°C)</h4>
+              <label>Yellow ≥</label><input type="number" id="th-temp-yellow" step="1" required />
+              <label>Orange ≥</label><input type="number" id="th-temp-orange" step="1" required />
+              <label>Red ≥</label><input type="number" id="th-temp-red" step="1" required />
+            </div>
+            <button type="submit" class="btn-primary">Save Thresholds</button>
+          </form>
+        </div>
+      </div>
+
+      <div id="admin-logsettings" class="sub-view hidden">
+        <div class="card">
+          <div class="card-title">Data Log Time Interval</div>
+          <p class="muted">How often the OBCMS simulator (or real ingestion service) logs a new reading per axle.</p>
+          <form id="logsettings-form" class="threshold-form">
+            <label>Log Interval (seconds)</label>
+            <input type="number" id="log-interval-input" min="2" max="3600" step="1" required />
+            <button type="submit" class="btn-primary">Save Setting</button>
+          </form>
+        </div>
       </div>
     </section>
   </main>

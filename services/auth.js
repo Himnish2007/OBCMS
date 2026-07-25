@@ -22,4 +22,16 @@ function requireAuth(req, res, next) {
   }
 }
 
-module.exports = { signToken, requireAuth, JWT_SECRET };
+// Usage: requireRole("Admin") or requireRole(["Admin", "Supervisor"])
+function requireRole(roles) {
+  const allowed = Array.isArray(roles) ? roles : [roles];
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: "Authentication required" });
+    if (!allowed.includes(req.user.role)) {
+      return res.status(403).json({ error: `This action requires role: ${allowed.join(" or ")}` });
+    }
+    next();
+  };
+}
+
+module.exports = { signToken, requireAuth, requireRole, JWT_SECRET };

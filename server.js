@@ -10,6 +10,12 @@ const { requireAuth } = require("./services/auth");
 const authRoutes = require("./routes/auth");
 const coachRoutes = require("./routes/coaches");
 const alertRoutes = require("./routes/alerts");
+const rakeRoutes = require("./routes/rakes");
+const adminRoutes = require("./routes/admin");
+const healthRoutes = require("./routes/health");
+const predictionRoutes = require("./routes/predictions");
+const analyticsRoutes = require("./routes/analytics");
+const reportRoutes = require("./routes/reports");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -21,11 +27,17 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // Public routes
 app.use("/api/auth", authRoutes);
-app.get("/api/health", (req, res) => res.json({ status: "ok", demoMode: DEMO_MODE, time: new Date().toISOString() }));
+app.get("/api/health-check", (req, res) => res.json({ status: "ok", demoMode: DEMO_MODE, time: new Date().toISOString() }));
 
-// Protected API routes
+// Protected API routes (all require a valid JWT; individual admin/rake writes are further role-gated)
 app.use("/api/coaches", requireAuth, coachRoutes);
 app.use("/api/alerts", requireAuth, alertRoutes);
+app.use("/api/rakes", requireAuth, rakeRoutes);
+app.use("/api/admin", requireAuth, adminRoutes);
+app.use("/api/health", requireAuth, healthRoutes);
+app.use("/api/predictions", requireAuth, predictionRoutes);
+app.use("/api/analytics", requireAuth, analyticsRoutes);
+app.use("/api/reports", requireAuth, reportRoutes);
 
 // Fallback to dashboard index (SPA-style)
 app.use((req, res) => {
@@ -34,8 +46,8 @@ app.use((req, res) => {
 
 init().then(() => {
   if (DEMO_MODE) {
-    simulator.start(8000);
-    console.log("DEMO_MODE active — simulated OBCMS/PICCU data generator running every 8s.");
+    simulator.start();
+    console.log("DEMO_MODE active — simulated OBCMS/PICCU data generator running (interval from Admin > Log Time Setting).");
   } else {
     console.log("DEMO_MODE disabled — connect a real Modbus/MQTT ingestion service in services/ingestion.js");
   }
