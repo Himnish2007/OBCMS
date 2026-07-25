@@ -4,30 +4,6 @@ const { requireRole } = require("../services/auth");
 
 const router = express.Router();
 
-// ---------------- Hardware Bill of Materials ----------------
-router.get("/hardware-bom", requireRole(["Admin", "Supervisor"]), async (req, res) => {
-  await db.read();
-  res.json(db.data.hardware.bom);
-});
-
-router.put("/hardware-bom", requireRole("Admin"), async (req, res) => {
-  const { bom } = req.body || {};
-  if (!Array.isArray(bom)) return res.status(400).json({ error: "bom must be an array" });
-  for (const row of bom) {
-    if (!row.component || !row.model) return res.status(400).json({ error: "Every BOM row needs a component and a model" });
-  }
-  await db.read();
-  db.data.hardware.bom = bom.map((row, idx) => ({
-    id: row.id || idx + 1,
-    component: row.component,
-    model: row.model,
-    qty_per_coach: Number(row.qty_per_coach) || 0,
-    purpose: row.purpose || "",
-  }));
-  await save();
-  res.json(db.data.hardware.bom);
-});
-
 // ---------------- Data source: demo simulator vs live Modbus TCP ingestion ----------------
 router.get("/data-source", requireRole(["Admin", "Supervisor"]), async (req, res) => {
   await db.read();

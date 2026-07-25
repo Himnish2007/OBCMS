@@ -1320,20 +1320,14 @@ document.getElementById("send-test-email-btn").addEventListener("click", async (
 });
 
 // ================= SETTINGS =================
-let bomCache = [];
-
 async function loadSettings() {
   try {
-    const [ds, bom, coachHw] = await Promise.all([
+    const [ds, coachHw] = await Promise.all([
       apiFetch("/settings/data-source"),
-      apiFetch("/settings/hardware-bom"),
       apiFetch("/settings/coach-hardware"),
     ]);
     document.getElementById("data-source-select").value = ds.data_source;
     document.getElementById("data-source-poll-interval").value = ds.poll_interval_seconds;
-
-    bomCache = bom;
-    renderBomTable();
 
     renderCoachHardwareTable(coachHw);
   } catch (err) { console.error(err); }
@@ -1354,58 +1348,6 @@ document.getElementById("data-source-form").addEventListener("submit", async (e)
     resultEl.style.color = "var(--green)";
     resultEl.textContent = `Saved — data source is now "${res.data_source === "live" ? "Live Hardware Mode" : "Demo Mode"}" (poll every ${res.poll_interval_seconds}s).`;
     showToast("Data source updated", "success");
-  } catch (err) {
-    resultEl.style.color = "var(--red)";
-    resultEl.textContent = err.message;
-  }
-});
-
-function renderBomTable() {
-  const tbody = document.getElementById("bom-table-body");
-  tbody.innerHTML = bomCache.map((row, idx) => `
-    <tr>
-      <td><input type="text" class="bom-component" data-idx="${idx}" value="${row.component}" style="width:100%;" /></td>
-      <td><input type="text" class="bom-model" data-idx="${idx}" value="${row.model}" style="width:100%;" /></td>
-      <td><input type="number" class="bom-qty" data-idx="${idx}" value="${row.qty_per_coach}" min="0" style="width:80px;" /></td>
-      <td><input type="text" class="bom-purpose" data-idx="${idx}" value="${row.purpose || ""}" style="width:100%;" /></td>
-      <td><button class="btn-danger" type="button" onclick="removeBomRow(${idx})">Remove</button></td>
-    </tr>
-  `).join("") || `<tr><td colspan="5" style="color:#5b6b7f;">No BOM rows yet — add one.</td></tr>`;
-}
-
-function collectBomFromTable() {
-  const rows = [...document.querySelectorAll("#bom-table-body tr")];
-  return rows.map((row) => ({
-    component: row.querySelector(".bom-component")?.value.trim() || "",
-    model: row.querySelector(".bom-model")?.value.trim() || "",
-    qty_per_coach: Number(row.querySelector(".bom-qty")?.value) || 0,
-    purpose: row.querySelector(".bom-purpose")?.value.trim() || "",
-  })).filter((r) => r.component && r.model);
-}
-
-function removeBomRow(idx) {
-  bomCache = collectBomFromTable();
-  bomCache.splice(idx, 1);
-  renderBomTable();
-}
-window.removeBomRow = removeBomRow;
-
-document.getElementById("bom-add-row-btn").addEventListener("click", () => {
-  bomCache = collectBomFromTable();
-  bomCache.push({ component: "", model: "", qty_per_coach: 1, purpose: "" });
-  renderBomTable();
-});
-
-document.getElementById("bom-save-btn").addEventListener("click", async () => {
-  const resultEl = document.getElementById("bom-save-result");
-  resultEl.textContent = "";
-  const bom = collectBomFromTable();
-  try {
-    bomCache = await apiFetch("/settings/hardware-bom", { method: "PUT", body: JSON.stringify({ bom }) });
-    renderBomTable();
-    resultEl.style.color = "var(--green)";
-    resultEl.textContent = "BOM saved.";
-    showToast("Hardware BOM saved", "success");
   } catch (err) {
     resultEl.style.color = "var(--red)";
     resultEl.textContent = err.message;

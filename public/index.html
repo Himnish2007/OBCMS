@@ -407,23 +407,10 @@
       </div>
 
       <div class="card">
-        <div class="card-title-row">
-          <div class="card-title">Hardware Bill of Materials (per coach)</div>
-          <button class="btn-primary" id="bom-add-row-btn" type="button">+ Add Row</button>
-        </div>
-        <table class="table" id="bom-table">
-          <thead><tr><th>Component</th><th>Model</th><th>Qty / Coach</th><th>Purpose</th><th></th></tr></thead>
-          <tbody id="bom-table-body"></tbody>
-        </table>
-        <button class="btn-primary" id="bom-save-btn" style="margin-top:0.6rem;">Save BOM</button>
-        <p id="bom-save-result" class="modal-error"></p>
-      </div>
-
-      <div class="card">
         <div class="card-title">Per-Coach Hardware Connectivity (Modbus TCP)</div>
-        <p class="muted">Har coach ke OBCMS aur PICCU BNI00L1 masters ka IP:Port yahan set karo (RUT200 ke through reachable). Blank IP wale coach ingestion me skip ho jate hain.</p>
+        <p class="muted">Har coach ke OBCMS aur PICCU Modbus master ka IP:Port yahan set karo (router ke through reachable). Blank IP wale coach ingestion me skip ho jate hain.</p>
         <table class="table" id="coach-hardware-table">
-          <thead><tr><th>Coach</th><th>OBCMS Master IP</th><th>Port</th><th>PICCU Master IP</th><th>Port</th><th>RUT200 IP</th><th></th></tr></thead>
+          <thead><tr><th>Coach</th><th>OBCMS Master IP</th><th>Port</th><th>PICCU Master IP</th><th>Port</th><th>Router IP</th><th></th></tr></thead>
           <tbody id="coach-hardware-table-body"></tbody>
         </table>
       </div>

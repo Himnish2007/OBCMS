@@ -56,14 +56,6 @@ const defaultData = {
     // from the Settings page — no redeploy needed to go live once hardware is wired up.
     data_source: "demo",
     poll_interval_seconds: 10,
-    bom: [
-      { id: 1, component: "Axle Vibration + Temperature Sensor", model: "Balluff BCM0004", qty_per_coach: 8, purpose: "OBCMS — per-axle vibration & temperature (IO-Link)" },
-      { id: 2, component: "OBCMS IO-Link Master", model: "Balluff BNI00L1", qty_per_coach: 1, purpose: "Aggregates 8x axle sensors, Modbus TCP out to RUT200" },
-      { id: 3, component: "PICCU Subsystem Status (digital)", model: "Existing relay/PNP signals -> BNI00L1 digital inputs", qty_per_coach: 13, purpose: "13 PICCU subsystem Online/Fault status" },
-      { id: 4, component: "PICCU IO-Link Master", model: "Balluff BNI00L1 (2nd unit)", qty_per_coach: 1, purpose: "PICCU subsystem status + analog telemetry aggregation" },
-      { id: 5, component: "Analog Telemetry Hub", model: "Balluff BNI00AJ", qty_per_coach: 1, purpose: "HVAC / Battery / WLI tank level — analog to IO-Link conversion" },
-      { id: 6, component: "Cellular Backhaul Router", model: "Teltonika RUT200", qty_per_coach: 1, purpose: "Modbus TCP polling of both masters + cellular uplink to Railway.app" },
-    ],
   },
   meta: { seeded: false },
 };
@@ -124,9 +116,9 @@ async function init() {
   db.data.rakes ||= [];
   db.data.axles ||= [];
   db.data.hardware ||= structuredClone(defaultData.hardware);
-  db.data.hardware.bom ||= structuredClone(defaultData.hardware.bom);
   if (db.data.hardware.data_source === undefined) db.data.hardware.data_source = "demo";
   if (db.data.hardware.poll_interval_seconds === undefined) db.data.hardware.poll_interval_seconds = 10;
+  delete db.data.hardware.bom;
   db.data.coaches.forEach((c) => { c.hardware ||= defaultCoachHardware(); });
   db.data.users.forEach((u) => {
     if (u.assigned_coaches === undefined) u.assigned_coaches = [];
