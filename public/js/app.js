@@ -533,6 +533,18 @@ function renderPredictionCoachOptions() {
   select.value = prevValue && uniqueCoaches.some((c) => c.coach_number === prevValue) ? prevValue : "";
 }
 
+function accelerationBadge(flag) {
+  if (flag === "accelerating") return ` <span class="accel-badge accel-up" title="${t("prediction.accel.accelerating")}">&#9650;&#9650;</span>`;
+  if (flag === "decelerating") return ` <span class="accel-badge accel-down" title="${t("prediction.accel.decelerating")}">&#9660;</span>`;
+  return "";
+}
+
+function confidenceBadge(conf) {
+  if (!conf) return "-";
+  const cls = conf.label === "High" ? "confidence-high" : conf.label === "Medium" ? "confidence-medium" : "confidence-low";
+  return `<span class="confidence-pill ${cls}">${t("prediction.confidence." + conf.label.toLowerCase())} (${Math.round(conf.score * 100)}%)</span>`;
+}
+
 function renderPredictionTable() {
   const tbody = document.getElementById("prediction-table-body");
   const q = predictionCoachQuery.trim().toLowerCase();
@@ -542,12 +554,14 @@ function renderPredictionTable() {
       <td>${p.coach_number}</td>
       <td>${t("common.axlePrefix")}${p.axle_number}</td>
       <td><span class="band-pill ${p.current_band}">${t("common.band." + p.current_band)}</span></td>
-      <td>${t("trend." + p.vibration_trend)}</td>
-      <td>${t("trend." + p.temperature_trend)}</td>
+      <td>${t("trend." + p.vibration_trend)}${accelerationBadge(p.vibration_acceleration)}</td>
+      <td>${t("trend." + p.temperature_trend)}${accelerationBadge(p.temperature_acceleration)}</td>
       <td>${p.driver_parameter ? t("driver." + p.driver_parameter) : "-"}</td>
       <td>${p.estimated_minutes_to_breach != null ? p.estimated_minutes_to_breach + " " + t("common.minAbbrev") + " (" + t("prediction.toLabel") + " " + p.predicted_next_threshold + (p.driver_parameter === "vibration" ? "g" : "°C") + ")" : t("common.stable")}</td>
+      <td>${confidenceBadge(p.confidence)}</td>
+      <td><button class="btn-small admin-supervisor-only" onclick="openLogMaintenanceModal(${p.axle_id}, '${p.coach_number}', ${p.axle_number})">${t("prediction.logEventBtn")}</button></td>
     </tr>
-  `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">${predictionCoachQuery ? t("prediction.noMatch", { q: predictionCoachQuery }) : t("prediction.noHistory")}</td></tr>`;
+  `).join("") || `<tr><td colspan="9" style="color:#5b6b7f;">${predictionCoachQuery ? t("prediction.noMatch", { q: predictionCoachQuery }) : t("prediction.noHistory")}</td></tr>`;
 }
 
 document.getElementById("prediction-coach-search").addEventListener("input", (e) => {
@@ -559,6 +573,81 @@ document.getElementById("prediction-coach-select").addEventListener("change", (e
   predictionCoachQuery = e.target.value;
   document.getElementById("prediction-coach-search").value = e.target.value;
   renderPredictionTable();
+});
+
+// ---------------- Maintenance / failure event logging ----------------
+// This is the historical dataset MDTS:44415's "certified predictive algorithm" would
+// need to be trained on — see routes/maintenance.js and routes/predictions.js for how
+// it's used today (baseline reset) and what it's for longer-term (future ML training).
+const MAINTENANCE_EVENT_TYPES = [
+  "bearing_replaced", "axle_replaced", "sensor_replaced",
+  "inspection_ok", "inspection_flagged", "unplanned_failure", "other",
+];
+
+function openLogMaintenanceModal(axleId, coachNumber, axleNumber) {
+  const options = MAINTENANCE_EVENT_TYPES.map((et) => `<option value="${et}">${t("maintenance.eventType." + et)}</option>`).join("");
+  openModal(`
+    <h3>${t("maintenance.modal.title", { coach: coachNumber, axle: axleNumber })}</h3>
+    <form id="maintenance-event-form">
+      <label>${t("maintenance.modal.eventType")}</label>
+      <select id="me-type">${options}</select>
+      <label>${t("maintenance.modal.notes")}</label>
+      <textarea id="me-notes" rows="3" placeholder="${t("maintenance.modal.notesPlaceholder")}"></textarea>
+      <p class="modal-error" id="maintenance-event-error"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" onclick="closeModal()">${t("common.cancel")}</button>
+        <button type="submit" class="btn-primary">${t("maintenance.modal.saveBtn")}</button>
+      </div>
+    </form>
+  `);
+  document.getElementById("maintenance-event-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch("/maintenance", {
+        method: "POST",
+        body: JSON.stringify({
+          axle_id: axleId,
+          event_type: document.getElementById("me-type").value,
+          notes: document.getElementById("me-notes").value.trim(),
+        }),
+      });
+      closeModal();
+      showToast(t("maintenance.toast.logged"), "success");
+      loadPrediction();
+    } catch (err) { document.getElementById("maintenance-event-error").textContent = err.message; }
+  });
+}
+window.openLogMaintenanceModal = openLogMaintenanceModal;
+
+document.getElementById("view-maintenance-log-btn").addEventListener("click", async () => {
+  try {
+    const events = await apiFetch("/maintenance");
+    const rows = events.map((ev) => `
+      <tr>
+        <td>${new Date(ev.event_at).toLocaleString()}</td>
+        <td>${ev.coach_id != null ? (COACHES.find((c) => c.id === ev.coach_id)?.coach_number || "-") : "-"}</td>
+        <td>${t("common.axlePrefix")}${ev.axle_number}</td>
+        <td>${t("maintenance.eventType." + ev.event_type)}</td>
+        <td>${ev.notes || "-"}</td>
+        <td>${ev.reading_snapshot ? `${ev.reading_snapshot.vibration_g}g / ${ev.reading_snapshot.temperature_c}°C` : "-"}</td>
+        <td>${ev.logged_by}</td>
+      </tr>
+    `).join("");
+    openModal(`
+      <h3>${t("maintenance.logTitle")}</h3>
+      <p class="muted">${t("maintenance.logNote")}</p>
+      <div style="max-height:60vh;overflow:auto;">
+        <table class="table">
+          <thead><tr>
+            <th>${t("maintenance.log.when")}</th><th>${t("maintenance.log.coach")}</th><th>${t("maintenance.log.axle")}</th>
+            <th>${t("maintenance.log.eventType")}</th><th>${t("maintenance.log.notes")}</th>
+            <th>${t("maintenance.log.readingAtEvent")}</th><th>${t("maintenance.log.loggedBy")}</th>
+          </tr></thead>
+          <tbody>${rows || `<tr><td colspan="7" class="muted">${t("maintenance.logEmpty")}</td></tr>`}</tbody>
+        </table>
+      </div>
+    `);
+  } catch (err) { showToast(err.message, "error"); }
 });
 
 // ================= ANALYTICS =================

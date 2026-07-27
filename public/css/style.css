@@ -153,6 +153,14 @@ body {
 .band-pill.ORANGE { background: var(--orange); }
 .band-pill.RED { background: var(--red); }
 
+.confidence-pill { padding: 0.22rem 0.6rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; display: inline-block; }
+.confidence-pill.confidence-high { background: rgba(46,125,50,0.15); color: var(--green); }
+.confidence-pill.confidence-medium { background: rgba(217,164,0,0.15); color: var(--yellow); }
+.confidence-pill.confidence-low { background: rgba(91,107,127,0.15); color: var(--text-muted); }
+.accel-badge { font-size: 0.7rem; }
+.accel-badge.accel-up { color: var(--red); }
+.accel-badge.accel-down { color: var(--green); }
+
 .status-pill { padding: 0.22rem 0.6rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; display: inline-block; }
 .status-pill.Online { background: #e4f3e5; color: var(--green); }
 .status-pill.Fault { background: #fdecea; color: var(--red); }

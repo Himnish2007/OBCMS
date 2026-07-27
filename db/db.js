@@ -29,6 +29,9 @@ const defaultData = {
   rutDevices: [],       // physical RUT routers — reassignable to whichever coach they're currently mounted on
   rutReassignLog: [],   // audit trail of RUT <-> coach reassignments
   auditLog: [],         // admin actions: who did what, when (user mgmt, threshold/notification/data-source changes)
+  maintenanceEvents: [], // axle/component maintenance & failure history — foundation for a future
+                          // ML-based predictive model (MDTS:44415 requires historical-failure training data,
+                          // which does not exist yet; this is how it starts getting collected)
   thresholds: {
     vibration: { yellow: 150, orange: 250, red: 380 }, // g
     temperature: { yellow: 70, orange: 90, red: 105 }, // °C
@@ -108,6 +111,7 @@ async function init() {
   db.data.coachSwapLog ||= [];
   db.data.notificationLog ||= [];
   db.data.auditLog ||= [];
+  db.data.maintenanceEvents ||= [];
   db.data.rakes ||= [];
   db.data.axles ||= [];
   // Old demo/live toggle removed — the app is now live-hardware-only. Clean up any

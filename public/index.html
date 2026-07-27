@@ -215,7 +215,10 @@
     <section id="view-prediction" class="view hidden">
       <div class="info-banner" id="prediction-note"></div>
       <div class="card">
-        <div class="card-title" data-i18n="prediction.card.title">Predicted Time to Next Threshold Breach</div>
+        <div class="card-title-row">
+          <div class="card-title" data-i18n="prediction.card.title">Predicted Time to Next Threshold Breach</div>
+          <button class="btn-secondary" id="view-maintenance-log-btn" data-i18n="prediction.maintenanceLogBtn">Maintenance Log</button>
+        </div>
         <div class="coach-selector">
           <label data-i18n="common.searchSelectCoach">Search / Select Coach:</label>
           <input type="text" id="prediction-coach-search" data-i18n-placeholder="common.typeCoachNumber" placeholder="Type coach number..." list="prediction-coach-datalist" />
@@ -232,6 +235,8 @@
               <th data-i18n="prediction.table.tempTrend">Temp Trend</th>
               <th data-i18n="prediction.table.drivenBy">Driven By</th>
               <th data-i18n="prediction.table.estTimeToBreach">Est. Time to Breach</th>
+              <th data-i18n="prediction.table.confidence">Confidence</th>
+              <th data-i18n="prediction.table.actions">Actions</th>
             </tr>
           </thead>
           <tbody id="prediction-table-body"></tbody>
