@@ -3,6 +3,7 @@ const { JSONFile } = require("lowdb/node");
 const path = require("path");
 const fs = require("fs");
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
 
@@ -25,6 +26,8 @@ const defaultData = {
   piccuTelemetry: [],
   coachSwapLog: [],
   notificationLog: [],
+  rutDevices: [],       // physical RUT routers — reassignable to whichever coach they're currently mounted on
+  rutReassignLog: [],   // audit trail of RUT <-> coach reassignments
   thresholds: {
     vibration: { yellow: 150, orange: 250, red: 380 }, // g
     temperature: { yellow: 70, orange: 90, red: 105 }, // °C
@@ -51,11 +54,11 @@ const defaultData = {
     },
   },
   hardware: {
-    // "demo" = services/simulator.js generates data. "live" = services/ingestion.js polls
-    // real Modbus TCP hardware per-coach (see coach.hardware below). Switchable at runtime
-    // from the Settings page — no redeploy needed to go live once hardware is wired up.
+    // "demo" = services/simulator.js generates data. "live" = incoming pushes from RUT
+    // devices (routes/ingest.js) are accepted and written for whichever coach each RUT
+    // is currently assigned to (db.data.rutDevices). Switchable at runtime from the
+    // Settings page — no redeploy needed to go live once hardware is wired up.
     data_source: "demo",
-    poll_interval_seconds: 10,
   },
   meta: { seeded: false },
 };
@@ -89,17 +92,8 @@ function nextId(arr) {
   return arr.length ? Math.max(...arr.map((x) => x.id)) + 1 : 1;
 }
 
-// Per-coach Modbus TCP connectivity for the two BNI00L1 IO-Link masters (OBCMS + PICCU)
-// plus the RUT200 that backhauls them. Left blank until the hardware is physically wired —
-// the ingestion service simply skips a coach whose IPs are not yet filled in.
-function defaultCoachHardware() {
-  return {
-    obcms_master_ip: "",
-    obcms_master_port: 502,
-    piccu_master_ip: "",
-    piccu_master_port: 502,
-    rut200_ip: "",
-  };
+function generateDeviceKey() {
+  return crypto.randomBytes(20).toString("hex"); // 40-char API key, given to the RUT's push script
 }
 
 async function init() {
@@ -117,9 +111,11 @@ async function init() {
   db.data.axles ||= [];
   db.data.hardware ||= structuredClone(defaultData.hardware);
   if (db.data.hardware.data_source === undefined) db.data.hardware.data_source = "demo";
-  if (db.data.hardware.poll_interval_seconds === undefined) db.data.hardware.poll_interval_seconds = 10;
   delete db.data.hardware.bom;
-  db.data.coaches.forEach((c) => { c.hardware ||= defaultCoachHardware(); });
+  delete db.data.hardware.poll_interval_seconds; // obsolete: ingestion is push-based now, not polled
+  db.data.rutDevices ||= [];
+  db.data.rutReassignLog ||= [];
+  db.data.coaches.forEach((c) => { delete c.hardware; }); // obsolete per-coach IP model — replaced by rutDevices
   db.data.users.forEach((u) => {
     if (u.assigned_coaches === undefined) u.assigned_coaches = [];
     if (u.email === undefined) u.email = "";
@@ -157,7 +153,6 @@ async function init() {
         coach_type: c.coach_type,
         position: c.position,
         status: "Active",
-        hardware: defaultCoachHardware(),
       });
 
       for (let axleNo = 1; axleNo <= AXLES_PER_COACH; axleNo++) {
@@ -189,4 +184,4 @@ async function save() {
   await db.write();
 }
 
-module.exports = { db, init, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS, defaultCoachHardware };
+module.exports = { db, init, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS, generateDeviceKey };

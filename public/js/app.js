@@ -1324,14 +1324,14 @@ document.getElementById("send-test-email-btn").addEventListener("click", async (
 // ================= SETTINGS =================
 async function loadSettings() {
   try {
-    const [ds, coachHw] = await Promise.all([
+    const [ds, devices, log] = await Promise.all([
       apiFetch("/settings/data-source"),
-      apiFetch("/settings/coach-hardware"),
+      apiFetch("/settings/rut-devices"),
+      apiFetch("/settings/rut-reassign-log"),
     ]);
     document.getElementById("data-source-select").value = ds.data_source;
-    document.getElementById("data-source-poll-interval").value = ds.poll_interval_seconds;
-
-    renderCoachHardwareTable(coachHw);
+    renderRutDevicesTable(devices);
+    renderRutReassignLog(log);
   } catch (err) { console.error(err); }
 }
 
@@ -1342,15 +1342,11 @@ document.getElementById("data-source-form").addEventListener("submit", async (e)
   try {
     const res = await apiFetch("/settings/data-source", {
       method: "PUT",
-      body: JSON.stringify({
-        data_source: document.getElementById("data-source-select").value,
-        poll_interval_seconds: Number(document.getElementById("data-source-poll-interval").value),
-      }),
+      body: JSON.stringify({ data_source: document.getElementById("data-source-select").value }),
     });
     resultEl.style.color = "var(--green)";
     resultEl.textContent = t("settings.dataSource.savedMessage", {
       mode: res.data_source === "live" ? t("settings.dataSource.optionLive") : t("settings.dataSource.optionSimulated"),
-      interval: res.poll_interval_seconds,
     });
     showToast(t("settings.dataSource.toastUpdated"), "success");
   } catch (err) {
@@ -1359,41 +1355,166 @@ document.getElementById("data-source-form").addEventListener("submit", async (e)
   }
 });
 
-function renderCoachHardwareTable(coachHw) {
-  const tbody = document.getElementById("coach-hardware-table-body");
-  tbody.innerHTML = coachHw.map((c) => `
-    <tr data-coach-id="${c.id}">
-      <td><b>${c.coach_number}</b></td>
-      <td><input type="text" class="ch-obcms-ip" value="${c.hardware.obcms_master_ip}" placeholder="${t("settings.connectivity.egObcmsIp")}" style="width:140px;" /></td>
-      <td><input type="number" class="ch-obcms-port" value="${c.hardware.obcms_master_port}" style="width:80px;" /></td>
-      <td><input type="text" class="ch-piccu-ip" value="${c.hardware.piccu_master_ip}" placeholder="${t("settings.connectivity.egPiccuIp")}" style="width:140px;" /></td>
-      <td><input type="number" class="ch-piccu-port" value="${c.hardware.piccu_master_port}" style="width:80px;" /></td>
-      <td><input type="text" class="ch-rut200-ip" value="${c.hardware.rut200_ip}" placeholder="${t("settings.connectivity.egRouterIp")}" style="width:140px;" /></td>
-      <td><button class="btn-small" type="button" onclick="saveCoachHardware(${c.id})">${t("settings.connectivity.saveBtn")}</button></td>
-    </tr>
-  `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">${t("settings.connectivity.noCoaches")}</td></tr>`;
+// Builds a searchable coach picker (typing + dropdown, matching the pattern used everywhere
+// else in the dashboard) for use inside a modal. Returns the HTML; call readCoachPickerValue()
+// on submit to get the selected coach id (or "" for none).
+function coachPickerHtml(idPrefix, includeNoneOption) {
+  const datalist = COACHES.map((c) => `<option value="${c.coach_number}">`).join("");
+  const options = (includeNoneOption ? `<option value="">${t("common.na")}</option>` : "") +
+    COACHES.map((c) => `<option value="${c.id}">${c.coach_number} — ${c.coach_type} (${c.rake_name})</option>`).join("");
+  return `
+    <input type="text" id="${idPrefix}-search" data-i18n-placeholder="common.typeCoachNumber" placeholder="${t("common.typeCoachNumber")}" list="${idPrefix}-datalist" style="margin-bottom:0.4rem;" />
+    <datalist id="${idPrefix}-datalist">${datalist}</datalist>
+    <select id="${idPrefix}-select">${options}</select>
+  `;
 }
 
-async function saveCoachHardware(coachId) {
-  const row = document.querySelector(`#coach-hardware-table-body tr[data-coach-id="${coachId}"]`);
-  if (!row) return;
-  try {
-    await apiFetch(`/settings/coach-hardware/${coachId}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        obcms_master_ip: row.querySelector(".ch-obcms-ip").value.trim(),
-        obcms_master_port: Number(row.querySelector(".ch-obcms-port").value) || 502,
-        piccu_master_ip: row.querySelector(".ch-piccu-ip").value.trim(),
-        piccu_master_port: Number(row.querySelector(".ch-piccu-port").value) || 502,
-        rut200_ip: row.querySelector(".ch-rut200-ip").value.trim(),
-      }),
-    });
-    showToast(t("settings.connectivity.toastSaved"), "success");
-  } catch (err) {
-    showToast(err.message, "error");
-  }
+function wireCoachPicker(idPrefix) {
+  const search = document.getElementById(`${idPrefix}-search`);
+  const select = document.getElementById(`${idPrefix}-select`);
+  search.addEventListener("change", () => {
+    const match = COACHES.find((c) => c.coach_number === search.value.trim());
+    if (match) select.value = match.id;
+  });
+  select.addEventListener("change", () => {
+    const coach = COACHES.find((c) => c.id === Number(select.value));
+    search.value = coach ? coach.coach_number : "";
+  });
 }
-window.saveCoachHardware = saveCoachHardware;
+
+function readCoachPickerValue(idPrefix) {
+  return document.getElementById(`${idPrefix}-select`).value;
+}
+
+function renderRutDevicesTable(devices) {
+  const tbody = document.getElementById("rut-devices-table-body");
+  tbody.innerHTML = devices.map((d) => `
+    <tr data-device-id="${d.id}">
+      <td><b>${d.label}</b></td>
+      <td>
+        <div class="device-key-cell">
+          <span class="device-key-value">${d.device_key}</span>
+          <button class="btn-small" type="button" onclick="copyDeviceKey('${d.device_key}')">${t("settings.rut.copyBtn")}</button>
+        </div>
+      </td>
+      <td>${d.current_coach_number || `<span class="muted">${t("settings.rut.unassigned")}</span>`}</td>
+      <td>${d.last_seen_at ? new Date(d.last_seen_at).toLocaleString() : t("settings.rut.neverSeen")}</td>
+      <td>
+        <button class="btn-small" type="button" onclick="openReassignRutModal(${d.id})">${t("settings.rut.reassignBtn")}</button>
+        <button class="btn-danger" type="button" onclick="deleteRutDevice(${d.id})">${t("common.delete")}</button>
+      </td>
+    </tr>
+  `).join("") || `<tr><td colspan="5" style="color:#5b6b7f;">${t("settings.rut.noDevices")}</td></tr>`;
+}
+
+function renderRutReassignLog(log) {
+  document.getElementById("rut-reassign-log-body").innerHTML = log.map((l) => `
+    <tr>
+      <td>${new Date(l.reassigned_at).toLocaleString()}</td>
+      <td>${l.device_label}</td>
+      <td>${l.from_coach_number || "-"}</td>
+      <td>${l.to_coach_number || t("settings.rut.unassigned")}</td>
+      <td>${l.reason}</td>
+      <td>${l.reassigned_by}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="6" style="color:#5b6b7f;">${t("settings.rut.noLog")}</td></tr>`;
+}
+
+function copyDeviceKey(key) {
+  navigator.clipboard.writeText(key).then(() => showToast(t("settings.rut.copied"), "success"));
+}
+window.copyDeviceKey = copyDeviceKey;
+
+document.getElementById("add-rut-device-btn").addEventListener("click", () => {
+  openModal(`
+    <h3>${t("settings.rut.modal.registerTitle")}</h3>
+    <form id="rut-register-form">
+      <label>${t("settings.rut.modal.label")}</label>
+      <input type="text" id="rut-label" required placeholder="${t("settings.rut.modal.egLabel")}" />
+      <label>${t("settings.rut.modal.initialCoach")}</label>
+      ${coachPickerHtml("rut-reg-coach", true)}
+      <p class="modal-error" id="rut-register-error"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" onclick="closeModal()">${t("common.cancel")}</button>
+        <button type="submit" class="btn-primary">${t("settings.rut.modal.registerBtn")}</button>
+      </div>
+    </form>
+  `);
+  wireCoachPicker("rut-reg-coach");
+  document.getElementById("rut-register-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      const device = await apiFetch("/settings/rut-devices", {
+        method: "POST",
+        body: JSON.stringify({
+          label: document.getElementById("rut-label").value.trim(),
+          coach_id: readCoachPickerValue("rut-reg-coach") || null,
+        }),
+      });
+      showToast(t("settings.rut.toastRegistered"), "success");
+      loadSettings();
+      openModal(`
+        <h3>${t("settings.rut.modal.keyRevealTitle")}</h3>
+        <p class="muted">${t("settings.rut.modal.keyRevealNote")}</p>
+        <div class="device-key-cell" style="margin:0.8rem 0;">
+          <span class="device-key-value" style="font-size:0.95rem;">${device.device_key}</span>
+          <button class="btn-small" type="button" onclick="copyDeviceKey('${device.device_key}')">${t("settings.rut.copyBtn")}</button>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-primary" onclick="closeModal()">${t("common.close")}</button>
+        </div>
+      `);
+    } catch (err) { document.getElementById("rut-register-error").textContent = err.message; }
+  });
+});
+
+async function openReassignRutModal(deviceId) {
+  const devices = await apiFetch("/settings/rut-devices");
+  const device = devices.find((d) => d.id === deviceId);
+  if (!device) return;
+  openModal(`
+    <h3>${t("settings.rut.modal.reassignTitle", { label: device.label })}</h3>
+    <form id="rut-reassign-form">
+      <label>${t("settings.rut.modal.newCoach")}</label>
+      ${coachPickerHtml("rut-reassign-coach", true)}
+      <label>${t("rakes.modal.reasonOptional")}</label>
+      <input type="text" id="rut-reassign-reason" placeholder="${t("rakes.modal.egReason")}" />
+      <p class="modal-error" id="rut-reassign-error"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" onclick="closeModal()">${t("common.cancel")}</button>
+        <button type="submit" class="btn-primary">${t("settings.rut.modal.reassignBtnSubmit")}</button>
+      </div>
+    </form>
+  `);
+  wireCoachPicker("rut-reassign-coach");
+  if (device.current_coach_id) document.getElementById("rut-reassign-coach-select").value = device.current_coach_id;
+  document.getElementById("rut-reassign-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch(`/settings/rut-devices/${deviceId}/reassign`, {
+        method: "PUT",
+        body: JSON.stringify({
+          to_coach_id: readCoachPickerValue("rut-reassign-coach") || null,
+          reason: document.getElementById("rut-reassign-reason").value.trim(),
+        }),
+      });
+      closeModal();
+      showToast(t("settings.rut.toastReassigned"), "success");
+      loadSettings();
+    } catch (err) { document.getElementById("rut-reassign-error").textContent = err.message; }
+  });
+}
+window.openReassignRutModal = openReassignRutModal;
+
+async function deleteRutDevice(deviceId) {
+  if (!confirm(t("settings.rut.confirmDelete"))) return;
+  try {
+    await apiFetch(`/settings/rut-devices/${deviceId}`, { method: "DELETE" });
+    showToast(t("settings.rut.toastDeleted"), "success");
+    loadSettings();
+  } catch (err) { showToast(err.message, "error"); }
+}
+window.deleteRutDevice = deleteRutDevice;
 
 // ---------------- Init ----------------
 if (TOKEN && USER) {

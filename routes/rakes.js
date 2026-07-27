@@ -1,5 +1,5 @@
 const express = require("express");
-const { db, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS, defaultCoachHardware } = require("../db/db");
+const { db, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS } = require("../db/db");
 const { requireRole } = require("../services/auth");
 const { coachOverallBand } = require("./coaches");
 const { accessibleCoachIds, getCurrentUser } = require("../services/access");
@@ -62,7 +62,6 @@ router.post("/", requireRole(["Admin", "Supervisor"]), async (req, res) => {
         coach_type: c.coach_type,
         position: Number(c.position),
         status: "Active",
-        hardware: defaultCoachHardware(),
       };
       db.data.coaches.push(coach);
       for (let axleNo = 1; axleNo <= AXLES_PER_COACH; axleNo++) {

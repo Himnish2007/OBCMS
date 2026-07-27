@@ -1,255 +1,171 @@
 // ============================================================================
-// LIVE HARDWARE INGESTION — polls the two Balluff BNI00L1 IO-Link masters per
-// coach over Modbus TCP (reachable via the coach's Teltonika RUT200) and writes
-// readings into the same DB shape as services/simulator.js, so the rest of the
-// dashboard (OBCMS grid, PICCU grid, alerts, analytics, reports) needs no changes.
+// LIVE HARDWARE INGESTION — PUSH MODEL
 //
-// Only runs when Settings > Data Source is set to "Live Hardware". A coach is
-// skipped entirely until its Modbus IPs are filled in on Settings > Hardware
-// Connectivity (Admin/Supervisor).
+// RUT routers are mobile hardware: the same physical unit gets moved between
+// trains as rakes are reshuffled, so we never hardcode "this coach lives at
+// this IP". Instead, each RUT is registered once in Settings > RUT Device
+// Assignment with a fixed device_key. A Lua script on the RUT (same pattern
+// as the LOCO TM CMS / EMU TM push scripts) polls the coach's local BNI00L1
+// masters over Modbus TCP and HTTP-POSTs the readings up to this server.
+// Whichever coach that device_key is CURRENTLY assigned to (Settings > RUT
+// Device Assignment) is where the data gets logged — reassigning a device
+// there is all that's needed after the router physically moves to another
+// train, no redeploy, no touching the RUT's own config.
 //
-// HARDWARE MAPPING — BNI00L1 #1 (OBCMS master):
-//   8x Balluff BCM0004 sensors, one per IO-Link port (Axle-1..Axle-8).
-//   Each axle's vibration + temperature process data is read as 2 consecutive
-//   16-bit Modbus holding registers per REGISTER_MAP.obcms below.
+// Push contract — POST /api/ingest/push
+// {
+//   "apiKey": "<device_key from Settings > RUT Device Assignment>",
+//   "speed_kmph": 62,                                  // optional, shared across axles
+//   "axles": [                                          // optional, 1-8 entries
+//     { "axle_number": 1, "vibration_g": 0.42, "temperature_c": 38.5 }
+//   ],
+//   "piccu_status": { "WLI": "Online", "CCTV": "Fault" },   // optional, system_name -> "Online"|"Fault"
+//   "telemetry": [                                      // optional, HVAC/Battery/WLI etc via BNI00AJ
+//     { "param": "Battery_Voltage_V", "value": 110.2, "unit": "V" }
+//   ]
+// }
 //
-// HARDWARE MAPPING — BNI00L1 #2 (PICCU master):
-//   - 13x PICCU subsystem Online/Fault signals wired into the master's built-in
-//     PNP digital inputs, packed as bits 0..12 of a single holding register.
-//   - Balluff BNI00AJ (8-ch analog/RTD hub) plugged into one IO-Link port,
-//     exposing HVAC/Battery/WLI channels as holding registers.
-//
-// IMPORTANT: The exact register addresses below are placeholders following
-// Balluff's common Modbus TCP process-data convention. Once the physical
-// masters are configured (via Balluff's web configuration page for each
-// BNI00L1), open that page's "Modbus TCP register mapping" tab and update the
-// offsets in REGISTER_MAP to match exactly — nothing else in this file needs
-// to change.
+// Only writes data when Settings > Data Source is set to "Live Hardware" —
+// while in "Simulated Data" mode, pushes are accepted (200 OK) but ignored,
+// so a RUT that's already live in the field never sees errors either way.
 // ============================================================================
 
-const ModbusRTU = require("modbus-serial");
 const { db, save, nextId } = require("../db/db");
 const { bandFor, worstBand } = require("./simulator");
 const { notifyAlert } = require("./notify");
-const { PICCU_SYSTEMS } = require("../db/db");
 
 const MAX_READINGS_PER_AXLE = 40;
 const MAX_TELEMETRY_PER_PARAM = 30;
-const MODBUS_TIMEOUT_MS = 3000;
 
-const REGISTER_MAP = {
-  obcms: {
-    unitId: 1,
-    axleRegisterBase: 0, // holding register address of Axle-1's first word
-    wordsPerAxle: 2, // [vibration_raw, temperature_raw]
-    vibrationScale: 0.1, // raw * scale = g
-    temperatureScale: 0.1, // raw * scale = °C
-    speedRegister: 16, // single register, shared coach speed (from RUT956/GPS or an axle tacho) — 0 if unavailable
-    speedScale: 0.1,
-  },
-  piccu: {
-    unitId: 1,
-    digitalStatusRegister: 0, // 1 register, bit0..bit12 = 13 subsystem flags, 1=Online 0=Fault
-    analogRegisterBase: 10, // holding register address of the first BNI00AJ channel
-    analogChannels: [
-      { param: "HVAC_Supply_Temp_C", offset: 0, scale: 0.1, unit: "°C" },
-      { param: "HVAC_Return_Temp_C", offset: 1, scale: 0.1, unit: "°C" },
-      { param: "Battery_Voltage_V", offset: 2, scale: 0.1, unit: "V" },
-      { param: "Battery_Current_A", offset: 3, scale: 0.01, unit: "A" },
-      { param: "WLI_Tank_Level_pct", offset: 4, scale: 0.1, unit: "%" },
-      { param: "Network_Power_kW", offset: 5, scale: 0.01, unit: "kW" },
-    ],
-  },
-};
-
-// One persistent Modbus TCP client per "host:port" so we don't reconnect every poll cycle.
-const clientPool = new Map();
-
-async function getClient(ip, port) {
-  const key = `${ip}:${port}`;
-  let client = clientPool.get(key);
-  if (client && client.isOpen) return client;
-  client = new ModbusRTU();
-  client.setTimeout(MODBUS_TIMEOUT_MS);
-  await client.connectTCP(ip, { port });
-  clientPool.set(key, client);
-  return client;
+class IngestionError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
 }
 
-async function pollObcmsMaster(coach, axles) {
-  const cfg = REGISTER_MAP.obcms;
-  const client = await getClient(coach.hardware.obcms_master_ip, coach.hardware.obcms_master_port);
-  client.setID(cfg.unitId);
+async function processPush(payload) {
+  await db.read();
 
-  let speed = 0;
-  try {
-    const speedResult = await client.readHoldingRegisters(cfg.speedRegister, 1);
-    speed = (speedResult.data[0] || 0) * cfg.speedScale;
-  } catch (err) {
-    // Speed register optional — proceed without it
+  const apiKey = payload && payload.apiKey;
+  if (!apiKey) throw new IngestionError(400, "apiKey is required");
+
+  const device = db.data.rutDevices.find((d) => d.device_key === apiKey);
+  if (!device) throw new IngestionError(401, "Unknown device API key");
+
+  device.last_seen_at = new Date().toISOString();
+
+  if (!device.current_coach_id) {
+    await save();
+    throw new IngestionError(409, `RUT "${device.label}" is not currently assigned to any coach — assign it from Settings > RUT Device Assignment.`);
+  }
+
+  const coach = db.data.coaches.find((c) => c.id === device.current_coach_id);
+  if (!coach) {
+    await save();
+    throw new IngestionError(409, `RUT "${device.label}" is assigned to a coach that no longer exists.`);
+  }
+
+  // Demo mode: acknowledge but don't write, so a live RUT in the field never errors out
+  // just because Settings > Data Source hasn't been flipped to "Live Hardware" yet.
+  if (db.data.hardware.data_source !== "live") {
+    await save();
+    return { accepted: false, reason: "Data Source is set to Simulated Data — push ignored.", coach_number: coach.coach_number };
   }
 
   const now = new Date().toISOString();
   const thresholds = db.data.thresholds;
+  const speed = Number(payload.speed_kmph) || 0;
+  let axlesLogged = 0;
 
-  for (const axle of axles) {
-    const base = cfg.axleRegisterBase + (axle.axle_number - 1) * cfg.wordsPerAxle;
-    let result;
-    try {
-      result = await client.readHoldingRegisters(base, cfg.wordsPerAxle);
-    } catch (err) {
-      console.error(`Ingestion: OBCMS read failed for ${coach.coach_number} Axle-${axle.axle_number} @ ${coach.hardware.obcms_master_ip}: ${err.message}`);
-      continue;
-    }
-    const vibration = result.data[0] * cfg.vibrationScale;
-    const temperature = result.data[1] * cfg.temperatureScale;
+  if (Array.isArray(payload.axles)) {
+    for (const entry of payload.axles) {
+      const axle = db.data.axles.find((a) => a.coach_id === coach.id && a.axle_number === Number(entry.axle_number));
+      if (!axle) continue;
+      const vibration = Number(entry.vibration_g);
+      const temperature = Number(entry.temperature_c);
+      if (Number.isNaN(vibration) || Number.isNaN(temperature)) continue;
 
-    const vibBand = bandFor(vibration, thresholds.vibration);
-    const tempBand = bandFor(temperature, thresholds.temperature);
-    const band = worstBand(vibBand, tempBand);
+      const vibBand = bandFor(vibration, thresholds.vibration);
+      const tempBand = bandFor(temperature, thresholds.temperature);
+      const band = worstBand(vibBand, tempBand);
 
-    const reading = {
-      id: nextId(db.data.readings),
-      axle_id: axle.id,
-      coach_id: coach.id,
-      axle_number: axle.axle_number,
-      ts: now,
-      vibration_g: Number(vibration.toFixed(1)),
-      temperature_c: Number(temperature.toFixed(1)),
-      speed_kmph: Number(speed.toFixed(0)),
-      vibration_band: vibBand,
-      temperature_band: tempBand,
-      band,
-    };
-    db.data.readings.push(reading);
+      const reading = {
+        id: nextId(db.data.readings),
+        axle_id: axle.id,
+        coach_id: coach.id,
+        axle_number: axle.axle_number,
+        ts: now,
+        vibration_g: Number(vibration.toFixed(1)),
+        temperature_c: Number(temperature.toFixed(1)),
+        speed_kmph: Number(speed.toFixed(0)),
+        vibration_band: vibBand,
+        temperature_band: tempBand,
+        band,
+      };
+      db.data.readings.push(reading);
+      axlesLogged++;
 
-    const axleReadings = db.data.readings.filter((r) => r.axle_id === axle.id);
-    if (axleReadings.length > MAX_READINGS_PER_AXLE) {
-      const excess = axleReadings
-        .sort((a, b) => new Date(a.ts) - new Date(b.ts))
-        .slice(0, axleReadings.length - MAX_READINGS_PER_AXLE)
-        .map((r) => r.id);
-      db.data.readings = db.data.readings.filter((r) => !excess.includes(r.id));
-    }
+      const axleReadings = db.data.readings.filter((r) => r.axle_id === axle.id);
+      if (axleReadings.length > MAX_READINGS_PER_AXLE) {
+        const excess = axleReadings
+          .sort((a, b) => new Date(a.ts) - new Date(b.ts))
+          .slice(0, axleReadings.length - MAX_READINGS_PER_AXLE)
+          .map((r) => r.id);
+        db.data.readings = db.data.readings.filter((r) => !excess.includes(r.id));
+      }
 
-    if (band === "ORANGE" || band === "RED") {
-      const openAlert = db.data.alerts.find((a) => a.axle_id === axle.id && !a.acknowledged && a.band === band);
-      if (!openAlert) {
-        const causedBy = vibBand === band ? "vibration" : "temperature";
-        const newAlert = {
-          id: nextId(db.data.alerts),
-          coach_id: coach.id,
-          axle_id: axle.id,
-          axle_number: axle.axle_number,
-          severity: band === "RED" ? "Critical" : "High",
-          band,
-          parameter: causedBy,
-          message: `Axle-${axle.axle_number} anomaly on ${coach.coach_number} — vibration ${reading.vibration_g}g, temp ${reading.temperature_c}°C (driven by ${causedBy}).`,
-          created_at: now,
-          acknowledged: false,
-        };
-        db.data.alerts.push(newAlert);
-        notifyAlert(newAlert, coach).catch((err) => console.error("notifyAlert error:", err.message));
+      if (band === "ORANGE" || band === "RED") {
+        const openAlert = db.data.alerts.find((a) => a.axle_id === axle.id && !a.acknowledged && a.band === band);
+        if (!openAlert) {
+          const causedBy = vibBand === band ? "vibration" : "temperature";
+          const newAlert = {
+            id: nextId(db.data.alerts),
+            coach_id: coach.id,
+            axle_id: axle.id,
+            axle_number: axle.axle_number,
+            severity: band === "RED" ? "Critical" : "High",
+            band,
+            parameter: causedBy,
+            message: `Axle-${axle.axle_number} anomaly on ${coach.coach_number} — vibration ${reading.vibration_g}g, temp ${reading.temperature_c}°C (driven by ${causedBy}).`,
+            created_at: now,
+            acknowledged: false,
+          };
+          db.data.alerts.push(newAlert);
+          notifyAlert(newAlert, coach).catch((err) => console.error("notifyAlert error:", err.message));
+        }
       }
     }
   }
-}
 
-async function pollPiccuMaster(coach) {
-  const cfg = REGISTER_MAP.piccu;
-  const client = await getClient(coach.hardware.piccu_master_ip, coach.hardware.piccu_master_port);
-  client.setID(cfg.unitId);
-  const now = new Date().toISOString();
-
-  // 13 subsystem status bits
-  try {
-    const statusResult = await client.readHoldingRegisters(cfg.digitalStatusRegister, 1);
-    const bits = statusResult.data[0];
+  if (payload.piccu_status && typeof payload.piccu_status === "object") {
     const systems = db.data.piccuSystems.filter((p) => p.coach_id === coach.id);
-    PICCU_SYSTEMS.forEach((sysName, idx) => {
-      const system = systems.find((s) => s.system_name === sysName);
+    Object.entries(payload.piccu_status).forEach(([systemName, status]) => {
+      const system = systems.find((s) => s.system_name === systemName);
       if (!system) return;
-      const online = ((bits >> idx) & 1) === 1;
-      const newStatus = online ? "Online" : "Fault";
+      const newStatus = status === "Online" || status === "Fault" ? status : "Fault";
       if (system.status !== newStatus) { system.status = newStatus; system.last_update = now; }
     });
-  } catch (err) {
-    console.error(`Ingestion: PICCU status read failed for ${coach.coach_number} @ ${coach.hardware.piccu_master_ip}: ${err.message}`);
   }
 
-  // Analog telemetry via BNI00AJ
-  try {
-    const width = Math.max(...cfg.analogChannels.map((c) => c.offset)) + 1;
-    const analogResult = await client.readHoldingRegisters(cfg.analogRegisterBase, width);
-    cfg.analogChannels.forEach((ch) => {
-      const raw = analogResult.data[ch.offset];
-      const value = Number((raw * ch.scale).toFixed(2));
-      db.data.piccuTelemetry.push({ id: nextId(db.data.piccuTelemetry), coach_id: coach.id, param: ch.param, value, unit: ch.unit, ts: now });
-      const history = db.data.piccuTelemetry.filter((p) => p.coach_id === coach.id && p.param === ch.param);
+  if (Array.isArray(payload.telemetry)) {
+    for (const item of payload.telemetry) {
+      if (!item || !item.param) continue;
+      const value = Number(item.value);
+      if (Number.isNaN(value)) continue;
+      db.data.piccuTelemetry.push({
+        id: nextId(db.data.piccuTelemetry), coach_id: coach.id, param: item.param, value, unit: item.unit || "", ts: now,
+      });
+      const history = db.data.piccuTelemetry.filter((p) => p.coach_id === coach.id && p.param === item.param);
       if (history.length > MAX_TELEMETRY_PER_PARAM) {
         const excess = history.sort((a, b) => new Date(a.ts) - new Date(b.ts)).slice(0, history.length - MAX_TELEMETRY_PER_PARAM).map((p) => p.id);
         db.data.piccuTelemetry = db.data.piccuTelemetry.filter((p) => !excess.includes(p.id));
-      }
-    });
-  } catch (err) {
-    console.error(`Ingestion: PICCU analog read failed for ${coach.coach_number} @ ${coach.hardware.piccu_master_ip}: ${err.message}`);
-  }
-}
-
-async function tick() {
-  await db.read();
-  if ((db.data.hardware && db.data.hardware.data_source) !== "live") return; // Settings > Data Source is set to Demo
-
-  const coaches = db.data.coaches.filter((c) => c.hardware && (c.hardware.obcms_master_ip || c.hardware.piccu_master_ip));
-  for (const coach of coaches) {
-    if (coach.hardware.obcms_master_ip) {
-      const axles = db.data.axles.filter((a) => a.coach_id === coach.id);
-      try {
-        await pollObcmsMaster(coach, axles);
-      } catch (err) {
-        console.error(`Ingestion: OBCMS master unreachable for ${coach.coach_number} @ ${coach.hardware.obcms_master_ip}: ${err.message}`);
-      }
-    }
-    if (coach.hardware.piccu_master_ip) {
-      try {
-        await pollPiccuMaster(coach);
-      } catch (err) {
-        console.error(`Ingestion: PICCU master unreachable for ${coach.coach_number} @ ${coach.hardware.piccu_master_ip}: ${err.message}`);
       }
     }
   }
 
   await save();
+  return { accepted: true, coach_number: coach.coach_number, axles_logged: axlesLogged, logged_at: now };
 }
 
-let timer = null;
-let running = false;
-
-async function loop() {
-  if (!running) return;
-  try {
-    await tick();
-  } catch (err) {
-    console.error("Ingestion tick error:", err.message);
-  }
-  await db.read();
-  const intervalMs = Math.max(2, Number(db.data.hardware.poll_interval_seconds) || 10) * 1000;
-  timer = setTimeout(loop, intervalMs);
-}
-
-function start() {
-  if (running) return;
-  running = true;
-  loop();
-}
-
-function stop() {
-  running = false;
-  if (timer) clearTimeout(timer);
-  for (const client of clientPool.values()) {
-    try { client.close(() => {}); } catch (err) { /* ignore */ }
-  }
-  clientPool.clear();
-}
-
-module.exports = { start, stop, tick };
+module.exports = { processPush, IngestionError };

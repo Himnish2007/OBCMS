@@ -5,7 +5,6 @@ const path = require("path");
 
 const { init } = require("./db/db");
 const simulator = require("./services/simulator");
-const ingestion = require("./services/ingestion");
 const scheduler = require("./services/scheduler");
 const { requireAuth } = require("./services/auth");
 
@@ -19,6 +18,7 @@ const predictionRoutes = require("./routes/predictions");
 const analyticsRoutes = require("./routes/analytics");
 const reportRoutes = require("./routes/reports");
 const settingsRoutes = require("./routes/settings");
+const ingestRoutes = require("./routes/ingest");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -31,6 +31,10 @@ app.use(express.static(path.join(__dirname, "public")));
 // Public routes
 app.use("/api/auth", authRoutes);
 app.get("/api/health-check", (req, res) => res.json({ status: "ok", demoMode: DEMO_MODE, time: new Date().toISOString() }));
+
+// RUT push ingestion — authenticated by per-device apiKey inside the body (see routes/ingest.js),
+// not by user JWT, since the caller is a router's Lua script, not a logged-in dashboard user.
+app.use("/api/ingest", ingestRoutes);
 
 // Protected API routes (all require a valid JWT; individual admin/rake writes are further role-gated)
 app.use("/api/coaches", requireAuth, coachRoutes);
@@ -49,12 +53,11 @@ app.use((req, res) => {
 });
 
 init().then(() => {
-  // Both engines run concurrently but each checks db.data.hardware.data_source on every
-  // tick and no-ops unless it's the active one. Switch "Demo" <-> "Live Hardware" any time
-  // from Settings — no redeploy/restart needed once the Balluff/RUT200 hardware is wired up.
+  // Simulator only runs its tick when Settings > Data Source = Simulated Data. In Live
+  // Hardware mode, data instead arrives via RUT devices POSTing to /api/ingest/push —
+  // there is no server-side polling loop, since the RUT itself pushes on its own schedule.
   simulator.start();
-  ingestion.start();
-  console.log(`Data engine ready — current source: ${DEMO_MODE ? "demo (env default)" : "live (env default)"}. Actual mode is controlled from Settings > Data Source and can be switched at runtime.`);
+  console.log(`Data engine ready (env default: ${DEMO_MODE ? "demo" : "live"}). Actual mode is controlled from Settings > Data Source and can be switched at runtime.`);
   scheduler.start();
   console.log("Daily report scheduler active — checks every minute against Admin > Notifications > Daily Report Time.");
   app.listen(PORT, () => {

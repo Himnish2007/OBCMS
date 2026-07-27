@@ -481,36 +481,68 @@
     <section id="view-settings" class="view hidden">
       <div class="card">
         <div class="card-title" data-i18n="settings.dataSource.title">Data Source</div>
-        <p class="muted" data-i18n="settings.dataSource.note">Switch between simulated data and live hardware polling once the Modbus TCP hardware is wired up — it switches instantly, no redeploy needed.</p>
+        <p class="muted" data-i18n="settings.dataSource.note">Switch between simulated data and live RUT pushes once the hardware is wired up — it switches instantly, no redeploy needed.</p>
         <form id="data-source-form" class="threshold-form">
           <label data-i18n="settings.dataSource.activeSource">Active Source</label>
           <select id="data-source-select">
             <option value="demo" data-i18n="settings.dataSource.optionSimulated">Simulated Data</option>
-            <option value="live" data-i18n="settings.dataSource.optionLive">Live Hardware (Modbus TCP polling)</option>
+            <option value="live" data-i18n="settings.dataSource.optionLive">Live Hardware (RUT push)</option>
           </select>
-          <label data-i18n="settings.dataSource.pollInterval">Poll Interval (seconds)</label>
-          <input type="number" id="data-source-poll-interval" min="2" max="3600" step="1" required style="max-width:180px;" />
           <button type="submit" class="btn-primary" data-i18n="settings.dataSource.saveBtn">Save Data Source</button>
         </form>
         <p id="data-source-result" class="modal-error"></p>
       </div>
 
       <div class="card">
-        <div class="card-title" data-i18n="settings.connectivity.title">Per-Coach Hardware Connectivity (Modbus TCP)</div>
-        <p class="muted" data-i18n="settings.connectivity.note">Set each coach's OBCMS and PICCU Modbus master IP:Port here (reachable through the router). A coach with a blank IP is skipped by ingestion.</p>
-        <table class="table" id="coach-hardware-table">
+        <div class="card-title-row">
+          <div class="card-title" data-i18n="settings.rut.title">RUT Device Assignment</div>
+          <button class="btn-primary" id="add-rut-device-btn" data-i18n="settings.rut.registerBtn">+ Register New RUT</button>
+        </div>
+        <p class="muted" data-i18n="settings.rut.note">A RUT router is mobile hardware — it moves between trains, not fixed to one coach. Register each physical RUT once, then reassign it here whenever it's moved to a different coach. No redeploy needed.</p>
+        <table class="table" id="rut-devices-table">
           <thead>
             <tr>
-              <th data-i18n="settings.connectivity.table.coach">Coach</th>
-              <th data-i18n="settings.connectivity.table.obcmsIp">OBCMS Master IP</th>
-              <th data-i18n="settings.connectivity.table.port">Port</th>
-              <th data-i18n="settings.connectivity.table.piccuIp">PICCU Master IP</th>
-              <th data-i18n="settings.connectivity.table.port">Port</th>
-              <th data-i18n="settings.connectivity.table.routerIp">Router IP</th>
+              <th data-i18n="settings.rut.table.label">Label</th>
+              <th data-i18n="settings.rut.table.deviceKey">Device API Key</th>
+              <th data-i18n="settings.rut.table.currentCoach">Currently On Coach</th>
+              <th data-i18n="settings.rut.table.lastSeen">Last Seen</th>
               <th></th>
             </tr>
           </thead>
-          <tbody id="coach-hardware-table-body"></tbody>
+          <tbody id="rut-devices-table-body"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title" data-i18n="settings.rut.pushContractTitle">Push Contract (for the RUT's Lua script)</div>
+        <p class="muted" data-i18n="settings.rut.pushContractNote">Have the RUT's Lua script HTTP-POST this JSON to /api/ingest/push using the device's own API key — the same pattern used in LOCO TM CMS / EMU TM.</p>
+        <pre class="code-block">{
+  "apiKey": "&lt;this device's API key&gt;",
+  "speed_kmph": 62,
+  "axles": [
+    { "axle_number": 1, "vibration_g": 0.42, "temperature_c": 38.5 }
+  ],
+  "piccu_status": { "WLI": "Online", "CCTV": "Fault" },
+  "telemetry": [
+    { "param": "Battery_Voltage_V", "value": 110.2, "unit": "V" }
+  ]
+}</pre>
+      </div>
+
+      <div class="card">
+        <div class="card-title" data-i18n="settings.rut.logTitle">RUT Reassignment Log</div>
+        <table class="table" id="rut-reassign-log-table">
+          <thead>
+            <tr>
+              <th data-i18n="rakes.table.time">Time</th>
+              <th data-i18n="settings.rut.table.label">Label</th>
+              <th data-i18n="rakes.table.fromRake">From Coach</th>
+              <th data-i18n="rakes.table.toRake">To Coach</th>
+              <th data-i18n="rakes.table.reason">Reason</th>
+              <th data-i18n="rakes.table.by">By</th>
+            </tr>
+          </thead>
+          <tbody id="rut-reassign-log-body"></tbody>
         </table>
       </div>
     </section>
