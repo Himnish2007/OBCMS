@@ -30,7 +30,12 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // Public routes
 app.use("/api/auth", authRoutes);
-app.get("/api/health-check", (req, res) => res.json({ status: "ok", demoMode: DEMO_MODE, time: new Date().toISOString() }));
+app.get("/api/health-check", (req, res) => res.json({
+  status: "ok",
+  demoMode: DEMO_MODE,
+  time: new Date().toISOString(),
+  build: "2026-07-27-rut-devices-i18n-v1", // bump this string whenever you deploy, to verify Railway is serving the build you just pushed
+}));
 
 // RUT push ingestion — authenticated by per-device apiKey inside the body (see routes/ingest.js),
 // not by user JWT, since the caller is a router's Lua script, not a logged-in dashboard user.
