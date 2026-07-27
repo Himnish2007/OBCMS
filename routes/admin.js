@@ -1,7 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const { db, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS } = require("../db/db");
-const { requireRole } = require("../services/auth");
+const { db, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS, addAudit } = require("../db/db");
+const { requireRole, validatePassword } = require("../services/auth");
 const { sendEmail } = require("../services/mailer");
 
 const router = express.Router();
@@ -22,19 +22,24 @@ router.post("/users", requireRole(["Admin"]), async (req, res) => {
     return res.status(400).json({ error: "username, password, name and role are required" });
   }
   if (!VALID_ROLES.includes(role)) return res.status(400).json({ error: `role must be one of ${VALID_ROLES.join(", ")}` });
-  if (password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
+  const pwError = validatePassword(password);
+  if (pwError) return res.status(400).json({ error: pwError });
   await db.read();
   if (db.data.users.some((u) => u.username === username)) {
     return res.status(409).json({ error: "Username already exists" });
   }
   const user = {
     id: nextId(db.data.users),
-    username, passwordHash: bcrypt.hashSync(password, 8), name, role,
+    username, passwordHash: bcrypt.hashSync(password, 10), name, role,
     email: email || "", phone: phone || "",
     assigned_coaches: Array.isArray(assigned_coaches) ? assigned_coaches.map(Number) : [],
+    must_change_password: true, // Admin set this password — force the user to pick their own
+    failed_login_attempts: 0,
+    locked_until: null,
   };
   db.data.users.push(user);
   await save();
+  addAudit(req.user, "user_created", { target_username: username, role });
   res.status(201).json({ id: user.id, username: user.username, name: user.name, role: user.role, email: user.email, phone: user.phone, assigned_coaches: user.assigned_coaches });
 });
 
@@ -43,19 +48,27 @@ router.put("/users/:id", requireRole(["Admin"]), async (req, res) => {
   const user = db.data.users.find((u) => u.id === Number(req.params.id));
   if (!user) return res.status(404).json({ error: "User not found" });
   const { name, role, password, email, phone, assigned_coaches } = req.body || {};
+  const changes = {};
   if (name) user.name = name;
-  if (role) {
+  if (role && role !== user.role) {
     if (!VALID_ROLES.includes(role)) return res.status(400).json({ error: `role must be one of ${VALID_ROLES.join(", ")}` });
+    changes.role = { from: user.role, to: role };
     user.role = role;
   }
   if (password) {
-    if (password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
-    user.passwordHash = bcrypt.hashSync(password, 8);
+    const pwError = validatePassword(password);
+    if (pwError) return res.status(400).json({ error: pwError });
+    user.passwordHash = bcrypt.hashSync(password, 10);
+    user.must_change_password = true; // Admin-set password — force user to pick their own on next login
+    user.failed_login_attempts = 0;
+    user.locked_until = null;
+    changes.password_reset = true;
   }
   if (email !== undefined) user.email = email;
   if (phone !== undefined) user.phone = phone;
   if (assigned_coaches !== undefined) user.assigned_coaches = Array.isArray(assigned_coaches) ? assigned_coaches.map(Number) : [];
   await save();
+  if (Object.keys(changes).length) addAudit(req.user, "user_updated", { target_username: user.username, ...changes });
   res.json({ id: user.id, username: user.username, name: user.name, role: user.role, email: user.email, phone: user.phone, assigned_coaches: user.assigned_coaches });
 });
 
@@ -65,8 +78,10 @@ router.delete("/users/:id", requireRole(["Admin"]), async (req, res) => {
   if (req.user.id === userId) return res.status(400).json({ error: "You cannot delete your own account while logged in" });
   const exists = db.data.users.some((u) => u.id === userId);
   if (!exists) return res.status(404).json({ error: "User not found" });
+  const deletedUsername = db.data.users.find((u) => u.id === userId)?.username;
   db.data.users = db.data.users.filter((u) => u.id !== userId);
   await save();
+  addAudit(req.user, "user_deleted", { target_username: deletedUsername });
   res.json({ success: true });
 });
 
@@ -168,6 +183,7 @@ router.put("/thresholds", requireRole(["Admin"]), async (req, res) => {
     db.data.settings.log_interval_seconds = log_interval_seconds;
   }
   await save();
+  addAudit(req.user, "thresholds_updated", { vibration, temperature, log_interval_seconds });
   res.json({ ...db.data.thresholds, log_interval_seconds: db.data.settings.log_interval_seconds });
 });
 
@@ -211,6 +227,11 @@ router.put("/notifications", requireRole(["Admin"]), async (req, res) => {
     };
   }
   await save();
+  addAudit(req.user, "notification_settings_updated", {
+    daily_report_time: daily_report_time || undefined,
+    smtp_enabled: smtp ? !!smtp.enabled : undefined,
+    sms_enabled: sms ? !!sms.enabled : undefined,
+  });
   res.json({ success: true });
 });
 
@@ -223,6 +244,33 @@ router.post("/notifications/test-email", requireRole(["Admin"]), async (req, res
     text: "This is a test email confirming your SMTP configuration is working.",
   });
   res.json(log);
+});
+
+// ---------------- Security: mandatory email-OTP MFA ----------------
+router.get("/security", requireRole(["Admin"]), async (req, res) => {
+  await db.read();
+  res.json({ mfa_required: !!db.data.settings.mfa_required, smtp_enabled: !!db.data.settings.smtp.enabled });
+});
+
+router.put("/security", requireRole(["Admin"]), async (req, res) => {
+  const { mfa_required } = req.body || {};
+  await db.read();
+  if (mfa_required === true && !db.data.settings.smtp.enabled) {
+    return res.status(400).json({
+      error: "Enable and test SMTP in Admin > Notifications first — MFA emails a one-time code, and turning it on without working SMTP would lock everyone out.",
+    });
+  }
+  if (mfa_required !== undefined) db.data.settings.mfa_required = !!mfa_required;
+  await save();
+  addAudit(req.user, "mfa_setting_changed", { mfa_required: !!mfa_required });
+  res.json({ mfa_required: !!db.data.settings.mfa_required });
+});
+
+// ---------------- Audit log (user mgmt, threshold/notification changes, lockouts) ----------------
+router.get("/audit-log", requireRole(["Admin"]), async (req, res) => {
+  await db.read();
+  const limit = Math.min(Number(req.query.limit) || 200, 2000);
+  res.json(db.data.auditLog.slice(-limit).reverse());
 });
 
 module.exports = router;

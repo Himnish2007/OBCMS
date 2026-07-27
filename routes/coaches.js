@@ -97,6 +97,7 @@ router.get("/:id/alerts", requireCoachAccess, async (req, res) => {
 router.get("/:id/piccu", requireCoachAccess, async (req, res) => {
   await db.read();
   const coachId = Number(req.params.id);
+  const coach = db.data.coaches.find((c) => c.id === coachId);
   const systems = db.data.piccuSystems.filter((p) => p.coach_id === coachId);
   const telemetry = db.data.piccuTelemetry.filter((t) => t.coach_id === coachId);
   const latestByParam = {};
@@ -105,7 +106,12 @@ router.get("/:id/piccu", requireCoachAccess, async (req, res) => {
       latestByParam[t.param] = t;
     }
   });
-  res.json({ systems, telemetry: Object.values(latestByParam) });
+  res.json({
+    systems,
+    telemetry: Object.values(latestByParam),
+    wli_tank_level_pct: coach ? (coach.wli_tank_level_pct ?? null) : null,
+    wli_tank_level_updated_at: coach ? (coach.wli_tank_level_updated_at || null) : null,
+  });
 });
 
 module.exports = router;

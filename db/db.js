@@ -28,6 +28,7 @@ const defaultData = {
   notificationLog: [],
   rutDevices: [],       // physical RUT routers — reassignable to whichever coach they're currently mounted on
   rutReassignLog: [],   // audit trail of RUT <-> coach reassignments
+  auditLog: [],         // admin actions: who did what, when (user mgmt, threshold/notification/data-source changes)
   thresholds: {
     vibration: { yellow: 150, orange: 250, red: 380 }, // g
     temperature: { yellow: 70, orange: 90, red: 105 }, // °C
@@ -36,6 +37,9 @@ const defaultData = {
     log_interval_seconds: 8,
     daily_report_time: "08:00", // 24hr HH:mm, IST assumed — admin configurable
     last_daily_report_date: null, // yyyy-mm-dd, prevents double-sending same day
+    min_logging_speed_kmph: 15, // MDTS:44415 speed-gating — readings below this are received but not logged
+    password_min_length: 8,
+    mfa_required: false, // email-OTP second factor at login — off by default until SMTP is configured
     smtp: {
       enabled: false,
       host: "",
@@ -105,8 +109,12 @@ async function init() {
   db.data.settings.sms ||= structuredClone(defaultData.settings.sms);
   if (db.data.settings.daily_report_time === undefined) db.data.settings.daily_report_time = "08:00";
   if (db.data.settings.last_daily_report_date === undefined) db.data.settings.last_daily_report_date = null;
+  if (db.data.settings.min_logging_speed_kmph === undefined) db.data.settings.min_logging_speed_kmph = 15;
+  if (db.data.settings.password_min_length === undefined) db.data.settings.password_min_length = 8;
+  if (db.data.settings.mfa_required === undefined) db.data.settings.mfa_required = false;
   db.data.coachSwapLog ||= [];
   db.data.notificationLog ||= [];
+  db.data.auditLog ||= [];
   db.data.rakes ||= [];
   db.data.axles ||= [];
   db.data.hardware ||= structuredClone(defaultData.hardware);
@@ -120,6 +128,11 @@ async function init() {
     if (u.assigned_coaches === undefined) u.assigned_coaches = [];
     if (u.email === undefined) u.email = "";
     if (u.phone === undefined) u.phone = "";
+    if (u.must_change_password === undefined) u.must_change_password = false; // existing users unaffected
+    if (u.failed_login_attempts === undefined) u.failed_login_attempts = 0;
+    if (u.locked_until === undefined) u.locked_until = null;
+    if (u.otp_hash === undefined) u.otp_hash = null;
+    if (u.otp_expires_at === undefined) u.otp_expires_at = null;
   });
 
   if (!db.data.meta.seeded) {
@@ -127,7 +140,10 @@ async function init() {
 
     // Users — Admin, Supervisor, Viewer
     const mkUser = (id, username, password, role, name, email, phone, assigned_coaches) => ({
-      id, username, passwordHash: bcrypt.hashSync(password, 8), role, name, email, phone, assigned_coaches,
+      id, username, passwordHash: bcrypt.hashSync(password, 10), role, name, email, phone, assigned_coaches,
+      must_change_password: true, // default demo credentials — force a real password on first login
+      failed_login_attempts: 0,
+      locked_until: null,
     });
     db.data.users.push(
       mkUser(1, "admin", "Himnish@123", "Admin", "Piyush Tyagi", "admin@himnish.example", "", []),
@@ -180,8 +196,38 @@ async function init() {
   return db;
 }
 
+// lowdb has no transactions. Two concurrent callers (e.g. the simulator's tick and an
+// incoming live ingestion push, or two admin requests) could otherwise interleave a
+// db.read() -> mutate -> db.write() sequence and clobber each other's changes. This
+// tiny promise-chain mutex serializes every save() so writes are effectively atomic
+// relative to each other without needing a real database.
+let writeQueue = Promise.resolve();
 async function save() {
-  await db.write();
+  writeQueue = writeQueue.then(() => db.write()).catch((err) => {
+    console.error("db.write() failed:", err.message);
+  });
+  return writeQueue;
 }
 
-module.exports = { db, init, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS, generateDeviceKey };
+// Records an admin/security-relevant action. Kept lightweight and best-effort — never
+// throws, so a logging failure can't block the underlying action.
+function addAudit(actorUser, action, details) {
+  try {
+    db.data.auditLog.push({
+      id: nextId(db.data.auditLog),
+      ts: new Date().toISOString(),
+      actor_id: actorUser ? actorUser.id : null,
+      actor_username: actorUser ? actorUser.username : "system",
+      action,
+      details: details || {},
+    });
+    const MAX_AUDIT = 2000;
+    if (db.data.auditLog.length > MAX_AUDIT) {
+      db.data.auditLog = db.data.auditLog.slice(db.data.auditLog.length - MAX_AUDIT);
+    }
+  } catch (err) {
+    console.error("addAudit failed:", err.message);
+  }
+}
+
+module.exports = { db, init, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS, generateDeviceKey, addAudit };

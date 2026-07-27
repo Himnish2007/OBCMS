@@ -1,5 +1,5 @@
 const express = require("express");
-const { db, save, nextId, generateDeviceKey } = require("../db/db");
+const { db, save, nextId, generateDeviceKey, addAudit } = require("../db/db");
 const { requireRole } = require("../services/auth");
 const { getCurrentUser } = require("../services/access");
 
@@ -132,6 +132,24 @@ router.post("/clear-simulated-data", requireRole("Admin"), async (req, res) => {
   db.data.piccuSystems.forEach((p) => { p.status = "No Data"; p.last_update = null; });
   await save();
   res.json({ success: true });
+});
+
+// ---------------- Speed-gating threshold (MDTS:44415) ----------------
+router.get("/logging-speed", requireRole(["Admin", "Supervisor"]), async (req, res) => {
+  await db.read();
+  res.json({ min_logging_speed_kmph: db.data.settings.min_logging_speed_kmph });
+});
+
+router.put("/logging-speed", requireRole("Admin"), async (req, res) => {
+  const { min_logging_speed_kmph } = req.body || {};
+  if (typeof min_logging_speed_kmph !== "number" || min_logging_speed_kmph < 0 || min_logging_speed_kmph > 200) {
+    return res.status(400).json({ error: "min_logging_speed_kmph must be a number between 0 and 200" });
+  }
+  await db.read();
+  db.data.settings.min_logging_speed_kmph = min_logging_speed_kmph;
+  await save();
+  addAudit(getCurrentUser(req), "logging_speed_updated", { min_logging_speed_kmph });
+  res.json({ min_logging_speed_kmph });
 });
 
 module.exports = router;

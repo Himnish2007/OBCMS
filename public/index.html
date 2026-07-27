@@ -475,6 +475,17 @@
             <button type="submit" class="btn-primary" data-i18n="admin.notifications.sms.saveBtn">Save SMS Settings</button>
           </form>
         </div>
+
+        <div class="card">
+          <div class="card-title" data-i18n="admin.security.title">Security</div>
+          <p class="muted" data-i18n="admin.security.note">Requires a successfully tested SMTP configuration above — each login will need a one-time code emailed to the user.</p>
+          <form id="security-form" class="threshold-form">
+            <label><input type="checkbox" id="mfa-required" style="width:auto;display:inline-block;margin-right:0.4rem;" /> <span data-i18n="admin.security.mfaLabel">Require email OTP at login (MFA)</span></label>
+            <button type="submit" class="btn-primary" data-i18n="admin.security.saveBtn">Save Security Settings</button>
+          </form>
+          <p class="modal-error" id="security-error"></p>
+          <button class="btn-secondary" id="view-audit-log-btn" data-i18n="admin.security.viewAuditBtn" style="margin-top:0.5rem;">View Audit Log</button>
+        </div>
       </div>
     </section>
 

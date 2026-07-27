@@ -67,15 +67,95 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || t("common.loginFailed"));
-    TOKEN = data.token;
-    USER = data.user;
-    localStorage.setItem("himnish_token", TOKEN);
-    localStorage.setItem("himnish_user", JSON.stringify(USER));
-    boot();
+    if (data.otp_required) {
+      promptForOtp(data.user_id);
+      return;
+    }
+    completeLogin(data);
   } catch (err) {
     errorEl.textContent = err.message;
   }
 });
+
+function completeLogin(data) {
+  TOKEN = data.token;
+  USER = data.user;
+  localStorage.setItem("himnish_token", TOKEN);
+  localStorage.setItem("himnish_user", JSON.stringify(USER));
+  if (data.must_change_password) {
+    promptForPasswordChange();
+  } else {
+    boot();
+  }
+}
+
+function promptForOtp(userId) {
+  openModal(`
+    <h3>${t("auth.otpTitle") || "Enter login code"}</h3>
+    <p class="muted">${t("auth.otpBody") || "We emailed you a one-time 6-digit code. It expires in 5 minutes."}</p>
+    <form id="otp-form">
+      <input type="text" id="otp-code" maxlength="6" pattern="[0-9]{6}" placeholder="123456" autofocus required />
+      <div class="modal-error" id="otp-error"></div>
+      <button type="submit" class="btn-primary">${t("common.verify") || "Verify"}</button>
+    </form>
+  `);
+  document.getElementById("otp-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const otp = document.getElementById("otp-code").value.trim();
+    const errEl = document.getElementById("otp-error");
+    try {
+      const res = await fetch(API + "/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, otp }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || t("common.requestFailed"));
+      closeModal();
+      completeLogin(data);
+    } catch (err) {
+      errEl.textContent = err.message;
+    }
+  });
+}
+
+function promptForPasswordChange() {
+  openModal(`
+    <h3>${t("auth.mustChangeTitle") || "Set a new password"}</h3>
+    <p class="muted">${t("auth.mustChangeBody") || "This account is using a temporary password. Choose your own before continuing (min 8 characters, at least one letter and one number)."}</p>
+    <form id="pwchange-form">
+      <input type="password" id="pw-current" placeholder="${t("auth.currentPassword") || "Current password"}" required />
+      <input type="password" id="pw-new" placeholder="${t("auth.newPassword") || "New password"}" required />
+      <input type="password" id="pw-confirm" placeholder="${t("auth.confirmPassword") || "Confirm new password"}" required />
+      <div class="modal-error" id="pwchange-error"></div>
+      <button type="submit" class="btn-primary">${t("common.save") || "Save"}</button>
+    </form>
+  `);
+  document.getElementById("pwchange-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const current_password = document.getElementById("pw-current").value;
+    const new_password = document.getElementById("pw-new").value;
+    const confirm = document.getElementById("pw-confirm").value;
+    const errEl = document.getElementById("pwchange-error");
+    if (new_password !== confirm) { errEl.textContent = t("auth.passwordMismatch") || "Passwords do not match"; return; }
+    try {
+      const res = await fetch(API + "/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + TOKEN },
+        body: JSON.stringify({ current_password, new_password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || t("common.requestFailed"));
+      USER.must_change_password = false;
+      localStorage.setItem("himnish_user", JSON.stringify(USER));
+      closeModal();
+      showToast(t("auth.passwordChanged") || "Password updated", "success");
+      boot();
+    } catch (err) {
+      errEl.textContent = err.message;
+    }
+  });
+}
 
 document.getElementById("logout-btn").addEventListener("click", logout);
 
@@ -966,6 +1046,7 @@ async function loadAdmin() {
   await loadAdminCoaches();
   await loadAdminThresholds();
   await loadAdminNotifications();
+  await loadAdminSecurity();
 }
 
 function coachCheckboxListHtml(selectedIds) {
@@ -1321,6 +1402,53 @@ document.getElementById("send-test-email-btn").addEventListener("click", async (
     else { resultEl.style.color = "var(--red)"; resultEl.textContent = t("admin.notifications.smtp.failed", { detail: log.detail }); }
   } catch (err) { resultEl.style.color = "var(--red)"; resultEl.textContent = err.message; }
 });
+
+// ---------------- Admin: Security (MFA) + Audit Log ----------------
+async function loadAdminSecurity() {
+  try {
+    const sec = await apiFetch("/admin/security");
+    document.getElementById("mfa-required").checked = !!sec.mfa_required;
+  } catch (err) { /* non-fatal — panel just stays at defaults */ }
+}
+
+document.getElementById("security-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById("security-error");
+  errEl.textContent = "";
+  try {
+    await apiFetch("/admin/security", {
+      method: "PUT",
+      body: JSON.stringify({ mfa_required: document.getElementById("mfa-required").checked }),
+    });
+    showToast(t("common.saveChanges") || "Saved", "success");
+  } catch (err) { errEl.textContent = err.message; }
+});
+
+document.getElementById("view-audit-log-btn").addEventListener("click", async () => {
+  try {
+    const log = await apiFetch("/admin/audit-log?limit=100");
+    const rows = log.map((a) => `
+      <tr>
+        <td>${new Date(a.ts).toLocaleString()}</td>
+        <td>${a.actor_username}</td>
+        <td>${a.action}</td>
+        <td><code style="font-size:0.8em;">${escapeHtml(JSON.stringify(a.details || {}))}</code></td>
+      </tr>`).join("");
+    openModal(`
+      <h3>${t("admin.security.auditLogTitle") || "Audit Log"}</h3>
+      <div style="max-height:60vh;overflow:auto;">
+        <table class="table">
+          <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="4" class="muted">${t("common.na")}</td></tr>`}</tbody>
+        </table>
+      </div>
+    `);
+  } catch (err) { showToast(err.message, "error"); }
+});
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
 
 // ================= SETTINGS =================
 async function loadSettings() {

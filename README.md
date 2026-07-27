@@ -62,7 +62,7 @@ calling the API directly (returns 404, not 403, to avoid confirming the coach ex
 - All delivery attempts (sent / failed / simulated) are recorded in `db.data.notificationLog` for
   audit purposes.
 
-## Default logins (change before real deployment)
+## Default logins (change on first login — enforced)
 
 | Username | Password | Role | Assigned coaches (demo seed) |
 |---|---|---|---|
@@ -70,11 +70,78 @@ calling the API directly (returns 404, not 403, to avoid confirming the coach ex
 | supervisor | Himnish@123 | Supervisor | LHB-29045, LHB-29112 |
 | viewer | Himnish@123 | Viewer | LHB-31207, LHB-31288 |
 
+All three seeded accounts are flagged `must_change_password` — the app forces a real
+password (min 8 chars, at least one letter + one number) on first login before anything
+else is usable. Same flag is set whenever an Admin resets someone's password from
+Admin > Users.
+
+## Security
+
+- **Brute-force protection:** 10 login attempts / 15 min per IP (`express-rate-limit`),
+  plus a per-account lockout (5 wrong passwords → 15-minute lock), both in
+  `routes/auth.js` / `server.js`.
+- **JWT_SECRET is mandatory in production** — `services/auth.js` refuses to boot if
+  `NODE_ENV=production` and `JWT_SECRET` isn't set, instead of silently falling back to
+  a hardcoded dev secret.
+- **Password policy:** min 8 characters, at least one letter and one digit, enforced both
+  on self-service change and Admin-driven create/reset (`services/auth.js` `validatePassword`).
+- **Security headers:** `helmet` is applied in `server.js` (CSP left off since the frontend
+  is plain inline-script HTML, not nonce-aware — the rest of helmet's protections still apply).
+- **CORS:** restrict to your real frontend domain via `ALLOWED_ORIGINS` in `.env` before a
+  real deployment; left open (reflects request origin) for local/demo use.
+- **Ingestion rate limiting:** `/api/ingest/push` is separately rate-limited (60 req/min)
+  so a leaked or guessed device key can't flood the server.
+- **Optional email-OTP MFA:** Admin > Notifications > Security — "Require email OTP at
+  login". Off by default (needs working SMTP first, checked server-side before it can be
+  turned on, so nobody gets locked out). This covers the "OTP" part of the MDTS:44415
+  MFA/OTP/DSC requirement; **DSC (Digital Signature Certificate) hardware-token auth is
+  still not implemented** — it needs a specific DSC vendor/library decision (eToken, USB
+  crypto token, etc.) before it can be wired in.
+- **Audit log:** Admin > Notifications > Security > "View Audit Log" — records user
+  create/update/delete, password resets, threshold/notification/MFA setting changes, and
+  account lockouts. `services/db.js` `addAudit()` / `GET /api/admin/audit-log`.
+
+## MDTS:44415 Rev.02 spec coverage
+
+- **GPS/GNSS location stamping** — every logged axle reading now carries `lat`/`lon`
+  (from the RUT push payload's `gps` field; the demo simulator fakes a plausible NCR-area
+  GNSS track). Requires a GNSS-capable RUT/module in the field to populate for real.
+- **Speed gating** — axle vibration/temperature readings below
+  Settings > `min_logging_speed_kmph` (default 15 kmph, Admin-configurable via
+  `PUT /api/settings/logging-speed`) are received but not logged, in both live ingestion
+  and the demo simulator. GPS/PICCU/telemetry are not speed-gated.
+- **WLI tank-level %** — `wli_tank_level_pct` on the coach record, settable via the
+  `wli_tank_level_pct` field in a push payload; simulated with a drain/refill cycle in
+  demo mode.
+- **SBC telemetry** — expanded from 6 to ~14 representative parameters (HVAC, battery,
+  brake pressure, coupler force, smoke detector, PA system, passenger count, axle bearing
+  temp, underframe vibration). Still short of the full 20+ parameter Annexure list — that
+  depends on the actual BNI00AJ point map for each coach variant, which needs RDSO/OEM
+  confirmation before it can be finalized.
+
+## Known simplifications / production-readiness notes
+
+- lowdb (JSON file) is fine for a prototype; production fleet scale should move to
+  PostgreSQL/TimescaleDB. A lightweight write-mutex (`db/db.js` `save()`) now serializes
+  all writes so the simulator/ingestion/scheduler can't interleave and corrupt data — this
+  closes the race-condition window, but a real database with transactions is still the
+  right long-term answer at scale.
+- **Railway persistent volume is still a manual infra step, not something code alone can
+  fix:** without a volume attached at `DATA_DIR` (see `.env.example`), `data/db.json`
+  resets on every redeploy — including users, coach assignments, RUT device keys, and
+  notification settings. Attach a volume before relying on this in production.
+- SMS delivery is not real until a provider is wired into `services/sms.js`
+  `sendViaProvider()` — needs a paid gateway account (Twilio, MSG91, AWS SNS, etc.) that
+  only Himnish/the Railway can provide.
+- DSC (Digital Signature Certificate) authentication is not implemented (see Security
+  section above) — needs a vendor/library decision first.
+
 ## Run locally
 
 ```bash
 npm install
 cp .env.example .env
+# edit .env: set JWT_SECRET to a real random value (openssl rand -hex 32)
 npm start
 ```
 
@@ -84,33 +151,24 @@ App runs on `http://localhost:4000`.
 
 ```
 himnish-obcms-piccu-dashboard/
-├── server.js                 # Express app entrypoint — starts simulator + daily-report scheduler
-├── db/db.js                   # lowdb schema: rakes, coaches, axles, users (+coach assignment), thresholds, notification settings
+├── server.js                 # Express app entrypoint — helmet, CORS, rate limiters, starts simulator + scheduler
+├── db/db.js                   # lowdb schema: rakes, coaches, axles, users, thresholds, notification/security settings, audit log
 ├── services/
-│   ├── auth.js                  # JWT sign/verify + requireRole()
+│   ├── auth.js                  # JWT sign/verify, requireRole(), password policy, prod JWT_SECRET enforcement
 │   ├── access.js                 # per-user coach access filtering + requireCoachAccess middleware
-│   ├── simulator.js              # DEMO_MODE data generator (dynamic thresholds + log interval)
+│   ├── simulator.js              # DEMO_MODE data generator (speed gating, GPS drift, WLI %, expanded SBC telemetry)
+│   ├── ingestion.js               # live RUT push handler (speed gating, GPS, WLI %, alerts)
 │   ├── notify.js                  # routes new alerts to the coach's assigned user(s)
-│   ├── mailer.js                  # nodemailer wrapper (real SMTP sending once configured)
+│   ├── mailer.js                  # nodemailer wrapper (real SMTP sending once configured; also used for OTP emails)
 │   ├── sms.js                     # pluggable SMS stub — needs a real provider wired in
 │   ├── pdfReport.js                # pdfkit-based coach/user report builder
 │   └── scheduler.js                # daily per-user report email, once per day at Admin-set time
 ├── routes/
-│   ├── auth.js, coaches.js, alerts.js, rakes.js, admin.js, health.js, predictions.js, analytics.js, reports.js
+│   ├── auth.js                    # login, OTP verify, change-password (with lockout + policy)
+│   ├── admin.js                    # users, coaches, thresholds, notifications, security (MFA), audit log
+│   ├── settings.js, coaches.js, alerts.js, rakes.js, health.js, predictions.js, analytics.js, reports.js
 └── public/                      # frontend (HTML/CSS/JS + Chart.js via CDN)
 ```
-
-## Known simplifications / production-readiness notes
-
-- lowdb (JSON file) is fine for a prototype; production fleet scale should move to
-  PostgreSQL/TimescaleDB. There is a narrow race-condition window if the scheduler's per-user email
-  loop (which awaits inside a `for` loop) happens to overlap exactly with an in-flight simulator
-  tick — low probability at demo scale (daily vs. every-few-seconds), but worth knowing about before
-  scaling this up; a real database with transactions removes this class of bug entirely.
-- Still outstanding versus MDTS:44415 Rev.02: GPS/GNSS location stamping, speed gating (>15 kmph)
-  before logging, full SBC telemetry parameter set (currently 6 representative parameters), WLI
-  tank-level percentage, MFA/OTP/DSC authentication.
-- SMS delivery is not real until a provider is wired into `services/sms.js` (see above).
 
 ## Deploying to Railway.app (GitHub-integrated)
 
@@ -125,9 +183,14 @@ git push -u origin main
 ```
 
 On Railway.app: New Project → Deploy from GitHub repo → set environment variables
-(`JWT_SECRET`, `DEMO_MODE`) → Railway auto-detects Node.js and runs `npm install` then `npm start`.
-Configure SMTP (and optionally SMS) from Admin > Notifications after first login — no redeploy
-needed, settings are stored in the database.
+(`JWT_SECRET` — required, `NODE_ENV=production`, `DEMO_MODE`, `ALLOWED_ORIGINS` once you
+know the real frontend domain) → **attach a persistent volume mounted at the path you set
+as `DATA_DIR`** (e.g. `/app/data`) so users, coach assignments, RUT device keys and
+notification settings survive redeploys → Railway auto-detects Node.js and runs
+`npm install` then `npm start`.
+Configure SMTP (and optionally SMS, and MFA once SMTP is confirmed working) from
+Admin > Notifications after first login — no redeploy needed, settings are stored in the
+database.
 
 For subsequent updates:
 ```bash

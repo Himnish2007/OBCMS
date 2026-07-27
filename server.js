@@ -2,6 +2,8 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 
 const { init } = require("./db/db");
 const simulator = require("./services/simulator");
@@ -24,9 +26,44 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const DEMO_MODE = (process.env.DEMO_MODE || "false") === "true";
 
-app.use(cors());
+// ALLOWED_ORIGINS: comma-separated list, e.g. "https://obcms.himnish.example,https://admin.himnish.example"
+// Left unset => reflects request origin (fine for a first deploy), but should be locked
+// down once the real frontend domain is known.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "").split(",").map((o) => o.trim()).filter(Boolean);
+app.use(cors(allowedOrigins.length ? { origin: allowedOrigins } : {}));
+
+// Security headers. CSP is disabled because the frontend is plain inline-script HTML/JS
+// served from the same origin (not a templated app with nonce support) — enabling a
+// default CSP would break it outright. The other helmet protections (X-Frame-Options,
+// X-Content-Type-Options, HSTS, etc.) still apply.
+app.use(helmet({ contentSecurityPolicy: false }));
+
+app.set("trust proxy", 1); // needed for correct client IPs behind Railway's proxy (rate limiting, logging)
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
+
+// Brute-force protection on login: 10 attempts per 15 minutes per IP, on top of the
+// per-account lockout in routes/auth.js (services/auth.js validatePassword + the
+// failed_login_attempts logic in routes/auth.js).
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Please try again later." },
+});
+app.use("/api/auth/login", loginLimiter);
+
+// Ingestion is authenticated by per-device apiKey, not JWT — rate-limit it separately
+// so a leaked/guessed device key (or a misbehaving RUT) can't flood the server.
+const ingestLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60, // generous for legitimate RUT push intervals (seconds-scale), blocks abuse
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many ingestion requests. Please slow down." },
+});
 
 // Public routes
 app.use("/api/auth", authRoutes);
@@ -39,7 +76,7 @@ app.get("/api/health-check", (req, res) => res.json({
 
 // RUT push ingestion — authenticated by per-device apiKey inside the body (see routes/ingest.js),
 // not by user JWT, since the caller is a router's Lua script, not a logged-in dashboard user.
-app.use("/api/ingest", ingestRoutes);
+app.use("/api/ingest", ingestLimiter, ingestRoutes);
 
 // Protected API routes (all require a valid JWT; individual admin/rake writes are further role-gated)
 app.use("/api/coaches", requireAuth, coachRoutes);
