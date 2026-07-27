@@ -346,18 +346,11 @@ const I18N = {
     "admin.notifications.smtp.notSent": "Not sent — {detail}",
     "admin.notifications.smtp.failed": "Failed: {detail}",
 
-    "settings.dataSource.toastUpdated": "Data source updated",
-    "settings.dataSource.savedMessage": 'Saved — data source is now "{mode}".',
-
     "settings.dataSource.title": "Data Source",
-    "settings.dataSource.note": "Switch between simulated data and live RUT pushes once the hardware is wired up — it switches instantly, no redeploy needed.",
-    "settings.dataSource.activeSource": "Active Source",
-    "settings.dataSource.optionSimulated": "Simulated Data",
-    "settings.dataSource.optionLive": "Live Hardware (RUT push)",
-    "settings.dataSource.saveBtn": "Save Data Source",
-    "settings.dataSource.clearBtn": "Clear All Simulated Data",
+    "settings.dataSource.note": "This dashboard runs on live hardware only — data arrives from RUT devices pushing to /api/ingest/push (RUT Device Assignment below). There is no simulated/demo mode.",
+    "settings.dataSource.clearBtn": "Reset Sensor Data",
     "settings.dataSource.confirmClear": "This permanently deletes all readings, alerts, and PICCU telemetry, and resets every PICCU system to \"No Data\". Coaches, rakes, and users are untouched. Continue?",
-    "settings.dataSource.toastCleared": "All simulated data cleared — dashboard now shows No Data until real hardware pushes readings.",
+    "settings.dataSource.toastCleared": "Sensor data cleared — dashboard now shows No Data until hardware pushes new readings.",
 
     "settings.rut.title": "RUT Device Assignment",
     "settings.rut.registerBtn": "+ Register New RUT",
@@ -743,18 +736,11 @@ const I18N = {
     "admin.notifications.smtp.notSent": "नहीं भेजी गई — {detail}",
     "admin.notifications.smtp.failed": "विफल: {detail}",
 
-    "settings.dataSource.toastUpdated": "डेटा सोर्स अपडेट हुआ",
-    "settings.dataSource.savedMessage": 'सेव हुआ — डेटा सोर्स अब "{mode}" है।',
-
     "settings.dataSource.title": "डेटा सोर्स",
-    "settings.dataSource.note": "हार्डवेयर वायर होने के बाद सिम्युलेटेड डेटा और लाइव RUT पुश के बीच स्विच करें — तुरंत बदल जाता है, रीडिप्लॉय की ज़रूरत नहीं।",
-    "settings.dataSource.activeSource": "सक्रिय सोर्स",
-    "settings.dataSource.optionSimulated": "सिम्युलेटेड डेटा",
-    "settings.dataSource.optionLive": "लाइव हार्डवेयर (RUT पुश)",
-    "settings.dataSource.saveBtn": "डेटा सोर्स सेव करें",
-    "settings.dataSource.clearBtn": "सारा सिम्युलेटेड डेटा साफ़ करें",
+    "settings.dataSource.note": "यह डैशबोर्ड सिर्फ लाइव हार्डवेयर पर चलता है — डेटा RUT डिवाइसेज़ से /api/ingest/push पर आता है (नीचे RUT डिवाइस असाइनमेंट देखें)। कोई सिम्युलेटेड/डेमो मोड नहीं है।",
+    "settings.dataSource.clearBtn": "सेंसर डेटा रीसेट करें",
     "settings.dataSource.confirmClear": "इससे सारी रीडिंग्स, अलर्ट्स, और PICCU टेलीमेट्री हमेशा के लिए डिलीट हो जाएंगी, और हर PICCU सिस्टम \"कोई डेटा नहीं\" पर रीसेट हो जाएगा। कोच, रेक, और यूज़र्स सुरक्षित रहेंगे। जारी रखें?",
-    "settings.dataSource.toastCleared": "सारा सिम्युलेटेड डेटा साफ़ हो गया — असली हार्डवेयर से रीडिंग आने तक डैशबोर्ड \"कोई डेटा नहीं\" दिखाएगा।",
+    "settings.dataSource.toastCleared": "सेंसर डेटा साफ़ हो गया — नई रीडिंग आने तक डैशबोर्ड \"कोई डेटा नहीं\" दिखाएगा।",
 
     "settings.rut.title": "RUT डिवाइस असाइनमेंट",
     "settings.rut.registerBtn": "+ नया RUT रजिस्टर करें",

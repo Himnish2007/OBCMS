@@ -57,13 +57,6 @@ const defaultData = {
       sender_id: "",
     },
   },
-  hardware: {
-    // "demo" = services/simulator.js generates data. "live" = incoming pushes from RUT
-    // devices (routes/ingest.js) are accepted and written for whichever coach each RUT
-    // is currently assigned to (db.data.rutDevices). Switchable at runtime from the
-    // Settings page — no redeploy needed to go live once hardware is wired up.
-    data_source: "demo",
-  },
   meta: { seeded: false },
 };
 
@@ -117,10 +110,9 @@ async function init() {
   db.data.auditLog ||= [];
   db.data.rakes ||= [];
   db.data.axles ||= [];
-  db.data.hardware ||= structuredClone(defaultData.hardware);
-  if (db.data.hardware.data_source === undefined) db.data.hardware.data_source = "demo";
-  delete db.data.hardware.bom;
-  delete db.data.hardware.poll_interval_seconds; // obsolete: ingestion is push-based now, not polled
+  // Old demo/live toggle removed — the app is now live-hardware-only. Clean up any
+  // leftover fields from a pre-existing db.json so we don't carry dead state around.
+  if (db.data.hardware) { delete db.data.hardware.data_source; delete db.data.hardware.bom; delete db.data.hardware.poll_interval_seconds; }
   db.data.rutDevices ||= [];
   db.data.rutReassignLog ||= [];
   db.data.coaches.forEach((c) => { delete c.hardware; }); // obsolete per-coach IP model — replaced by rutDevices
@@ -136,8 +128,6 @@ async function init() {
   });
 
   if (!db.data.meta.seeded) {
-    db.data.hardware.data_source = (process.env.DEMO_MODE || "false") === "true" ? "demo" : "live";
-
     // Users — Admin, Supervisor, Viewer
     const mkUser = (id, username, password, role, name, email, phone, assigned_coaches) => ({
       id, username, passwordHash: bcrypt.hashSync(password, 10), role, name, email, phone, assigned_coaches,
@@ -196,11 +186,11 @@ async function init() {
   return db;
 }
 
-// lowdb has no transactions. Two concurrent callers (e.g. the simulator's tick and an
-// incoming live ingestion push, or two admin requests) could otherwise interleave a
-// db.read() -> mutate -> db.write() sequence and clobber each other's changes. This
-// tiny promise-chain mutex serializes every save() so writes are effectively atomic
-// relative to each other without needing a real database.
+// lowdb has no transactions. Two concurrent callers (e.g. two RUT devices pushing at the
+// same moment, or an ingestion push overlapping an admin request) could otherwise
+// interleave a db.read() -> mutate -> db.write() sequence and clobber each other's
+// changes. This tiny promise-chain mutex serializes every save() so writes are
+// effectively atomic relative to each other without needing a real database.
 let writeQueue = Promise.resolve();
 async function save() {
   writeQueue = writeQueue.then(() => db.write()).catch((err) => {

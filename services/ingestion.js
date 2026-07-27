@@ -27,9 +27,8 @@
 //   ]
 // }
 //
-// Only writes data when Settings > Data Source is set to "Live Hardware" —
-// while in "Simulated Data" mode, pushes are accepted (200 OK) but ignored,
-// so a RUT that's already live in the field never sees errors either way.
+// Live hardware only — every valid push (recognized device_key, assigned to a coach) is
+// written immediately. There is no demo/simulated mode to gate against.
 //
 // Speed gating (MDTS:44415 Rev.02): axle readings are only logged when
 // speed_kmph is at/above Settings > min_logging_speed_kmph (default 15 kmph).
@@ -38,7 +37,7 @@
 // ============================================================================
 
 const { db, save, nextId } = require("../db/db");
-const { bandFor, worstBand } = require("./simulator");
+const { bandFor, worstBand } = require("./bands");
 const { notifyAlert } = require("./notify");
 
 const MAX_READINGS_PER_AXLE = 40;
@@ -71,13 +70,6 @@ async function processPush(payload) {
   if (!coach) {
     await save();
     throw new IngestionError(409, `RUT "${device.label}" is assigned to a coach that no longer exists.`);
-  }
-
-  // Demo mode: acknowledge but don't write, so a live RUT in the field never errors out
-  // just because Settings > Data Source hasn't been flipped to "Live Hardware" yet.
-  if (db.data.hardware.data_source !== "live") {
-    await save();
-    return { accepted: false, reason: "Data Source is set to Simulated Data — push ignored.", coach_number: coach.coach_number };
   }
 
   const now = new Date().toISOString();

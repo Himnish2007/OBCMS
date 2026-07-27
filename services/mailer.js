@@ -7,7 +7,7 @@ const { db, save, nextId } = require("../db/db");
 // built and tested without a live mail server.
 async function sendEmail({ toUserId, toAddress, subject, text, html, attachments }) {
   // NOTE: deliberately does NOT call db.read() here. This function can be invoked
-  // as a fire-and-forget side effect from the middle of the simulator's tick()
+  // as a fire-and-forget side effect from the middle of services/ingestion.js's
   // (which holds not-yet-saved changes in the shared in-memory db.data). Re-reading
   // from disk at this point would silently discard those pending changes. We rely
   // on db.data already being the live, shared, in-memory singleton kept current by

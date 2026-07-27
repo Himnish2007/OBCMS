@@ -5,9 +5,10 @@ PICCU (Passenger Information Coach Computing Unit), built against MDTS:44415 Rev
 
 - **Backend:** Node.js + Express, REST API, JWT auth, role-based + **per-coach access control**
 - **Storage:** lowdb (JSON file store) — zero native build dependencies
-- **Data source:** `DEMO_MODE` simulator generates realistic per-axle vibration/temperature and PICCU
-  telemetry on a configurable interval. Swap in a real Modbus/MQTT ingestion service in `services/`
-  when hardware is connected — the API and frontend contracts do not change.
+- **Data source:** **live hardware only.** RUT devices push readings to `/api/ingest/push`
+  (see `services/ingestion.js` for the payload contract). There is no simulator or demo
+  mode — until a RUT device is registered (Settings > RUT Device Assignment) and starts
+  pushing, every coach correctly shows "No Data".
 - **Frontend:** Vanilla JS + Chart.js — 10 views, role-and-coach-aware navigation.
 
 ## Modules / Pages
@@ -43,7 +44,7 @@ calling the API directly (returns 404, not 403, to avoid confirming the coach ex
 
 ## Alerts & Reports delivery
 
-- **Real-time alert routing:** when the simulator (or a real ingestion service) raises an
+- **Real-time alert routing:** when a live RUT push raises an
   ORANGE/RED alert for a coach, `services/notify.js` automatically emails (and, if configured,
   SMS's) every non-Admin user who has that coach assigned.
 - **Daily report email:** `services/scheduler.js` checks once a minute; at the Admin-configured
@@ -104,15 +105,12 @@ Admin > Users.
 ## MDTS:44415 Rev.02 spec coverage
 
 - **GPS/GNSS location stamping** — every logged axle reading now carries `lat`/`lon`
-  (from the RUT push payload's `gps` field; the demo simulator fakes a plausible NCR-area
-  GNSS track). Requires a GNSS-capable RUT/module in the field to populate for real.
+  (from the RUT push payload's `gps` field; requires a GNSS-capable RUT/module in the field).
 - **Speed gating** — axle vibration/temperature readings below
   Settings > `min_logging_speed_kmph` (default 15 kmph, Admin-configurable via
-  `PUT /api/settings/logging-speed`) are received but not logged, in both live ingestion
-  and the demo simulator. GPS/PICCU/telemetry are not speed-gated.
-- **WLI tank-level %** — `wli_tank_level_pct` on the coach record, settable via the
-  `wli_tank_level_pct` field in a push payload; simulated with a drain/refill cycle in
-  demo mode.
+  `PUT /api/settings/logging-speed`) are received but not logged. GPS/PICCU/telemetry are not speed-gated.
+- **WLI tank-level %** — `wli_tank_level_pct` on the coach record, set via the
+  `wli_tank_level_pct` field in a push payload.
 - **SBC telemetry** — expanded from 6 to ~14 representative parameters (HVAC, battery,
   brake pressure, coupler force, smoke detector, PA system, passenger count, axle bearing
   temp, underframe vibration). Still short of the full 20+ parameter Annexure list — that
@@ -123,7 +121,7 @@ Admin > Users.
 
 - lowdb (JSON file) is fine for a prototype; production fleet scale should move to
   PostgreSQL/TimescaleDB. A lightweight write-mutex (`db/db.js` `save()`) now serializes
-  all writes so the simulator/ingestion/scheduler can't interleave and corrupt data — this
+  all writes so concurrent RUT pushes/admin requests can't interleave and corrupt data — this
   closes the race-condition window, but a real database with transactions is still the
   right long-term answer at scale.
 - **Railway persistent volume is still a manual infra step, not something code alone can
@@ -151,13 +149,13 @@ App runs on `http://localhost:4000`.
 
 ```
 himnish-obcms-piccu-dashboard/
-├── server.js                 # Express app entrypoint — helmet, CORS, rate limiters, starts simulator + scheduler
+├── server.js                 # Express app entrypoint — helmet, CORS, rate limiters, live-only ingestion + scheduler
 ├── db/db.js                   # lowdb schema: rakes, coaches, axles, users, thresholds, notification/security settings, audit log
 ├── services/
 │   ├── auth.js                  # JWT sign/verify, requireRole(), password policy, prod JWT_SECRET enforcement
 │   ├── access.js                 # per-user coach access filtering + requireCoachAccess middleware
-│   ├── simulator.js              # DEMO_MODE data generator (speed gating, GPS drift, WLI %, expanded SBC telemetry)
-│   ├── ingestion.js               # live RUT push handler (speed gating, GPS, WLI %, alerts)
+│   ├── bands.js                    # shared vibration/temperature threshold-banding helpers
+│   ├── ingestion.js               # live RUT push handler (speed gating, GPS, WLI %, alerts) — the only data path
 │   ├── notify.js                  # routes new alerts to the coach's assigned user(s)
 │   ├── mailer.js                  # nodemailer wrapper (real SMTP sending once configured; also used for OTP emails)
 │   ├── sms.js                     # pluggable SMS stub — needs a real provider wired in
@@ -183,7 +181,7 @@ git push -u origin main
 ```
 
 On Railway.app: New Project → Deploy from GitHub repo → set environment variables
-(`JWT_SECRET` — required, `NODE_ENV=production`, `DEMO_MODE`, `ALLOWED_ORIGINS` once you
+(`JWT_SECRET` — required, `NODE_ENV=production`, `ALLOWED_ORIGINS` once you
 know the real frontend domain) → **attach a persistent volume mounted at the path you set
 as `DATA_DIR`** (e.g. `/app/data`) so users, coach assignments, RUT device keys and
 notification settings survive redeploys → Railway auto-detects Node.js and runs

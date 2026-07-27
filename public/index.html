@@ -493,17 +493,8 @@
     <section id="view-settings" class="view hidden">
       <div class="card">
         <div class="card-title" data-i18n="settings.dataSource.title">Data Source</div>
-        <p class="muted" data-i18n="settings.dataSource.note">Switch between simulated data and live RUT pushes once the hardware is wired up — it switches instantly, no redeploy needed.</p>
-        <form id="data-source-form" class="threshold-form">
-          <label data-i18n="settings.dataSource.activeSource">Active Source</label>
-          <select id="data-source-select">
-            <option value="demo" data-i18n="settings.dataSource.optionSimulated">Simulated Data</option>
-            <option value="live" data-i18n="settings.dataSource.optionLive">Live Hardware (RUT push)</option>
-          </select>
-          <button type="submit" class="btn-primary" data-i18n="settings.dataSource.saveBtn">Save Data Source</button>
-        </form>
-        <p id="data-source-result" class="modal-error"></p>
-        <button class="btn-danger" id="clear-simulated-data-btn" data-i18n="settings.dataSource.clearBtn" style="margin-top:0.6rem;">Clear All Simulated Data</button>
+        <p class="muted" data-i18n="settings.dataSource.note">This dashboard runs on live hardware only — data arrives from RUT devices pushing to /api/ingest/push (Settings &gt; RUT Device Assignment below). There is no simulated/demo mode.</p>
+        <button class="btn-danger" id="clear-simulated-data-btn" data-i18n="settings.dataSource.clearBtn" style="margin-top:0.6rem;">Reset Sensor Data</button>
       </div>
 
       <div class="card">

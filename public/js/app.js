@@ -1453,41 +1453,19 @@ function escapeHtml(str) {
 // ================= SETTINGS =================
 async function loadSettings() {
   try {
-    const [ds, devices, log] = await Promise.all([
-      apiFetch("/settings/data-source"),
+    const [devices, log] = await Promise.all([
       apiFetch("/settings/rut-devices"),
       apiFetch("/settings/rut-reassign-log"),
     ]);
-    document.getElementById("data-source-select").value = ds.data_source;
     renderRutDevicesTable(devices);
     renderRutReassignLog(log);
   } catch (err) { console.error(err); }
 }
 
-document.getElementById("data-source-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const resultEl = document.getElementById("data-source-result");
-  resultEl.textContent = "";
-  try {
-    const res = await apiFetch("/settings/data-source", {
-      method: "PUT",
-      body: JSON.stringify({ data_source: document.getElementById("data-source-select").value }),
-    });
-    resultEl.style.color = "var(--green)";
-    resultEl.textContent = t("settings.dataSource.savedMessage", {
-      mode: res.data_source === "live" ? t("settings.dataSource.optionLive") : t("settings.dataSource.optionSimulated"),
-    });
-    showToast(t("settings.dataSource.toastUpdated"), "success");
-  } catch (err) {
-    resultEl.style.color = "var(--red)";
-    resultEl.textContent = err.message;
-  }
-});
-
 document.getElementById("clear-simulated-data-btn").addEventListener("click", async () => {
   if (!confirm(t("settings.dataSource.confirmClear"))) return;
   try {
-    await apiFetch("/settings/clear-simulated-data", { method: "POST" });
+    await apiFetch("/settings/reset-sensor-data", { method: "POST" });
     showToast(t("settings.dataSource.toastCleared"), "success");
     loadSettings();
   } catch (err) {

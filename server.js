@@ -6,7 +6,6 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 
 const { init } = require("./db/db");
-const simulator = require("./services/simulator");
 const scheduler = require("./services/scheduler");
 const { requireAuth } = require("./services/auth");
 
@@ -24,7 +23,6 @@ const ingestRoutes = require("./routes/ingest");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const DEMO_MODE = (process.env.DEMO_MODE || "false") === "true";
 
 // ALLOWED_ORIGINS: comma-separated list, e.g. "https://obcms.himnish.example,https://admin.himnish.example"
 // Left unset => reflects request origin (fine for a first deploy), but should be locked
@@ -69,9 +67,9 @@ const ingestLimiter = rateLimit({
 app.use("/api/auth", authRoutes);
 app.get("/api/health-check", (req, res) => res.json({
   status: "ok",
-  demoMode: DEMO_MODE,
+  mode: "live-hardware-only",
   time: new Date().toISOString(),
-  build: "2026-07-27-rut-devices-i18n-v1", // bump this string whenever you deploy, to verify Railway is serving the build you just pushed
+  build: "2026-07-27-live-only-v1", // bump this string whenever you deploy, to verify Railway is serving the build you just pushed
 }));
 
 // RUT push ingestion — authenticated by per-device apiKey inside the body (see routes/ingest.js),
@@ -95,14 +93,12 @@ app.use((req, res) => {
 });
 
 init().then(() => {
-  // Simulator only runs its tick when Settings > Data Source = Simulated Data. In Live
-  // Hardware mode, data instead arrives via RUT devices POSTing to /api/ingest/push —
-  // there is no server-side polling loop, since the RUT itself pushes on its own schedule.
-  simulator.start();
-  console.log(`Data engine ready (env default: ${DEMO_MODE ? "demo" : "live"}). Actual mode is controlled from Settings > Data Source and can be switched at runtime.`);
+  // Live-hardware-only: data arrives via RUT devices POSTing to /api/ingest/push. There
+  // is no simulator and no demo mode — until real hardware is connected and registered
+  // (Settings > RUT Device Assignment), every view will correctly show "No Data".
   scheduler.start();
   console.log("Daily report scheduler active — checks every minute against Admin > Notifications > Daily Report Time.");
   app.listen(PORT, () => {
-    console.log(`Himnish OBCMS & PICCU Dashboard running on http://localhost:${PORT}`);
+    console.log(`Himnish OBCMS & PICCU Dashboard running on http://localhost:${PORT} (live hardware only — no simulator)`);
   });
 });

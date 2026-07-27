@@ -5,21 +5,6 @@ const { getCurrentUser } = require("../services/access");
 
 const router = express.Router();
 
-// ---------------- Data source: demo simulator vs live push-based ingestion ----------------
-router.get("/data-source", requireRole(["Admin", "Supervisor"]), async (req, res) => {
-  await db.read();
-  res.json({ data_source: db.data.hardware.data_source });
-});
-
-router.put("/data-source", requireRole("Admin"), async (req, res) => {
-  const { data_source } = req.body || {};
-  if (!["demo", "live"].includes(data_source)) return res.status(400).json({ error: "data_source must be 'demo' or 'live'" });
-  await db.read();
-  db.data.hardware.data_source = data_source;
-  await save();
-  res.json({ data_source: db.data.hardware.data_source });
-});
-
 // ---------------- RUT device registry ----------------
 // A RUT device is physical, mobile hardware — it does NOT belong permanently to one coach.
 // Each device has a fixed device_key (given to the Lua push script running on the RUT) and
@@ -119,18 +104,20 @@ router.get("/rut-reassign-log", requireRole(["Admin", "Supervisor"]), async (req
   res.json(log.slice(0, 100));
 });
 
-// ---------------- Clear simulated/demo sensor data ----------------
+// ---------------- Reset sensor data ----------------
 // Wipes readings, alerts, and PICCU telemetry, and resets every PICCU system's status
-// back to "No Data" — used when finalizing a deployment so nothing left over from
-// Simulated Data mode is mistaken for real hardware readings. Coaches, rakes, users,
-// and RUT device registrations are untouched.
-router.post("/clear-simulated-data", requireRole("Admin"), async (req, res) => {
+// back to "No Data" — useful once when going live for the first time (to clear out
+// anything left over from earlier testing), or any time you need a clean slate before a
+// fresh commissioning. Coaches, rakes, users, and RUT device registrations are untouched.
+router.post("/reset-sensor-data", requireRole("Admin"), async (req, res) => {
   await db.read();
   db.data.readings = [];
   db.data.alerts = [];
   db.data.piccuTelemetry = [];
+  db.data.coaches.forEach((c) => { c.wli_tank_level_pct = null; c.wli_tank_level_updated_at = null; });
   db.data.piccuSystems.forEach((p) => { p.status = "No Data"; p.last_update = null; });
   await save();
+  addAudit(getCurrentUser(req), "sensor_data_cleared", {});
   res.json({ success: true });
 });
 
