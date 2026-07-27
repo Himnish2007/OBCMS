@@ -60,6 +60,7 @@
       <button class="nav-item" data-view="alerts" data-i18n="nav.alerts">Alerts</button>
       <button class="nav-item" data-view="reports" data-i18n="nav.reports">Reports</button>
       <button class="nav-item" data-view="rakes" data-i18n="nav.rakes">Rake Management</button>
+      <button class="nav-item" data-view="coach-mgmt" data-i18n="nav.coachMgmt">Coach Management</button>
       <button class="nav-item admin-only" data-view="admin" data-i18n="nav.admin">Admin</button>
       <button class="nav-item admin-only" data-view="settings" data-i18n="nav.settings">Settings</button>
     </nav>
@@ -357,11 +358,32 @@
       </div>
     </section>
 
+    <!-- ===================== COACH MANAGEMENT ===================== -->
+    <section id="view-coach-mgmt" class="view hidden">
+      <div class="card">
+        <div class="card-title-row">
+          <div class="card-title" data-i18n="admin.coaches.title">Coach Management</div>
+          <button class="btn-primary admin-supervisor-only" id="add-coach-btn" data-i18n="admin.coaches.addBtn">+ Add Coach</button>
+        </div>
+        <table class="table" id="admin-coaches-table">
+          <thead>
+            <tr>
+              <th data-i18n="admin.coaches.table.coachNo">Coach No.</th>
+              <th data-i18n="admin.coaches.table.rake">Rake</th>
+              <th data-i18n="admin.coaches.table.type">Type</th>
+              <th data-i18n="admin.coaches.table.status">Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="admin-coaches-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- ===================== ADMIN ===================== -->
     <section id="view-admin" class="view hidden">
       <div class="sub-tabs">
         <button class="sub-tab active" data-subtab="users" data-i18n="admin.subtab.users">Users</button>
-        <button class="sub-tab" data-subtab="coaches" data-i18n="admin.subtab.coaches">Coaches</button>
         <button class="sub-tab" data-subtab="thresholds" data-i18n="admin.subtab.thresholds">Alert Thresholds &amp; Logging</button>
         <button class="sub-tab" data-subtab="notifications" data-i18n="admin.subtab.notifications">Notifications</button>
       </div>
@@ -384,25 +406,6 @@
             </tr>
           </thead>
           <tbody id="users-table-body"></tbody>
-        </table>
-      </div>
-
-      <div id="admin-coaches" class="sub-view hidden">
-        <div class="card-title-row">
-          <div class="card-title" data-i18n="admin.coaches.title">Coach Management</div>
-          <button class="btn-primary" id="add-coach-btn" data-i18n="admin.coaches.addBtn">+ Add Coach</button>
-        </div>
-        <table class="table" id="admin-coaches-table">
-          <thead>
-            <tr>
-              <th data-i18n="admin.coaches.table.coachNo">Coach No.</th>
-              <th data-i18n="admin.coaches.table.rake">Rake</th>
-              <th data-i18n="admin.coaches.table.type">Type</th>
-              <th data-i18n="admin.coaches.table.status">Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="admin-coaches-table-body"></tbody>
         </table>
       </div>
 

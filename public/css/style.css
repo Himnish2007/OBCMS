@@ -216,6 +216,9 @@ body.role-Admin .admin-supervisor-only,
 body.role-Supervisor .admin-supervisor-only { display: inline-flex; }
 .nav-item.admin-only { display: none; }
 body.role-Admin .nav-item.admin-only { display: block; }
+.nav-item.admin-supervisor-only { display: none; }
+body.role-Admin .nav-item.admin-supervisor-only,
+body.role-Supervisor .nav-item.admin-supervisor-only { display: block; }
 
 /* ---------- Buttons ---------- */
 .btn-primary {

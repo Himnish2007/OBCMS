@@ -195,6 +195,7 @@ function loadView(view) {
   if (view === "alerts") loadAlerts();
   if (view === "reports") loadReports();
   if (view === "rakes") loadRakes();
+  if (view === "coach-mgmt") loadCoachManagement();
   if (view === "admin") loadAdmin();
   if (view === "settings") loadSettings();
 }
@@ -1043,10 +1044,13 @@ async function loadAdmin() {
     return;
   }
   await loadAdminUsers();
-  await loadAdminCoaches();
   await loadAdminThresholds();
   await loadAdminNotifications();
   await loadAdminSecurity();
+}
+
+async function loadCoachManagement() {
+  await loadAdminCoaches();
 }
 
 function coachCheckboxListHtml(selectedIds) {
@@ -1186,8 +1190,8 @@ async function loadAdminCoaches() {
       <td>${c.coach_type}</td>
       <td>${t("admin.coaches.status." + c.status) }</td>
       <td>
-        <button class="btn-small" onclick="editCoach(${c.id})">${t("common.edit")}</button>
-        <button class="btn-danger" onclick="deleteCoach(${c.id})">${t("common.delete")}</button>
+        ${USER.role !== "Viewer" ? `<button class="btn-small" onclick="editCoach(${c.id})">${t("common.edit")}</button>` : ""}
+        ${USER.role === "Admin" ? `<button class="btn-danger" onclick="deleteCoach(${c.id})">${t("common.delete")}</button>` : ""}
       </td>
     </tr>
   `).join("");

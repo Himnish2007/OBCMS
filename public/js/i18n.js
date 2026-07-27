@@ -30,6 +30,7 @@ const I18N = {
     "nav.alerts": "Alerts",
     "nav.reports": "Reports",
     "nav.rakes": "Rake Management",
+    "nav.coachMgmt": "Coach Management",
     "nav.admin": "Admin",
     "nav.settings": "Settings",
 
@@ -244,7 +245,6 @@ const I18N = {
     "rakes.modal.reasonOptional": "Reason (optional)",
 
     "admin.subtab.users": "Users",
-    "admin.subtab.coaches": "Coaches",
     "admin.subtab.thresholds": "Alert Thresholds & Logging",
     "admin.subtab.notifications": "Notifications",
     "admin.users.title": "User Management",
@@ -420,6 +420,7 @@ const I18N = {
     "nav.alerts": "अलर्ट्स",
     "nav.reports": "रिपोर्ट्स",
     "nav.rakes": "रेक प्रबंधन",
+    "nav.coachMgmt": "कोच प्रबंधन",
     "nav.admin": "एडमिन",
     "nav.settings": "सेटिंग्स",
 
@@ -634,7 +635,6 @@ const I18N = {
     "rakes.modal.reasonOptional": "कारण (वैकल्पिक)",
 
     "admin.subtab.users": "यूज़र्स",
-    "admin.subtab.coaches": "कोच",
     "admin.subtab.thresholds": "अलर्ट थ्रेशोल्ड और लॉगिंग",
     "admin.subtab.notifications": "नोटिफिकेशन",
     "admin.users.title": "यूज़र प्रबंधन",
