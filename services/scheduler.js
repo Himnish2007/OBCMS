@@ -1,6 +1,8 @@
 const { db, save } = require("../db/db");
 const { buildCoachReportPdf } = require("./pdfReport");
 const { sendEmail } = require("./mailer");
+const { runSelfDiagnosisSweep } = require("./selfDiagnosis");
+const { runDowntimeSweep } = require("./downtime");
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10); // yyyy-mm-dd
@@ -46,9 +48,13 @@ async function runDailyReportsIfDue() {
 }
 
 function start() {
-  // Check once a minute — cheap, and only actually does work once per day per user.
+  // Check once a minute — cheap, and only actually does work once per day per user for the
+  // report; the self-diagnosis and downtime sweeps run every tick since staleness/downtime
+  // both need to be caught close to real-time (MDTS:44415 self-diagnosis + Part C Clause 10).
   return setInterval(() => {
     runDailyReportsIfDue().catch((err) => console.error("Daily report scheduler error:", err.message));
+    runSelfDiagnosisSweep().catch((err) => console.error("Self-diagnosis sweep error:", err.message));
+    runDowntimeSweep().catch((err) => console.error("Downtime sweep error:", err.message));
   }, 60 * 1000);
 }
 

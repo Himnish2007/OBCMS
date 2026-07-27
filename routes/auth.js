@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const { db, save, addAudit } = require("../db/db");
 const { signToken, requireAuth, validatePassword } = require("../services/auth");
 const { sendEmail } = require("../services/mailer");
+const { generateChallenge, verifySignature, CHALLENGE_VALID_MINUTES } = require("../services/dsc");
 
 const router = express.Router();
 
@@ -13,6 +14,26 @@ const OTP_VALID_MINUTES = 5;
 
 function hashOtp(otp) {
   return crypto.createHash("sha256").update(otp).digest("hex");
+}
+
+// Shared by both the plain-password path and the post-OTP path: once password (and OTP,
+// if enabled) have checked out, this decides whether a DSC challenge is still needed
+// before a JWT is issued (Admin > Notifications > Security > "Require DSC at login",
+// only applies to users who actually have a certificate uploaded).
+async function finalizeLogin(user, res) {
+  if (db.data.settings.dsc_required && user.dsc_cert_pem) {
+    const challenge = generateChallenge();
+    user.dsc_challenge = challenge;
+    user.dsc_challenge_expires_at = new Date(Date.now() + CHALLENGE_VALID_MINUTES * 60 * 1000).toISOString();
+    await save();
+    return res.json({ dsc_required: true, user_id: user.id, challenge });
+  }
+  const token = signToken(user);
+  return res.json({
+    token,
+    user: { id: user.id, username: user.username, role: user.role, name: user.name },
+    must_change_password: !!user.must_change_password,
+  });
 }
 
 router.post("/login", async (req, res) => {
@@ -71,12 +92,7 @@ router.post("/login", async (req, res) => {
   }
 
   await save();
-  const token = signToken(user);
-  res.json({
-    token,
-    user: { id: user.id, username: user.username, role: user.role, name: user.name },
-    must_change_password: !!user.must_change_password,
-  });
+  await finalizeLogin(user, res);
 });
 
 // Second step when Admin > Security > "Require email OTP at login" is enabled.
@@ -100,6 +116,36 @@ router.post("/verify-otp", async (req, res) => {
   user.otp_hash = null;
   user.otp_expires_at = null;
   await save();
+  await finalizeLogin(user, res);
+});
+
+// Third step, only when Admin > Security > "Require DSC at login" is enabled AND this user
+// has a DSC certificate on file (Admin > Users > DSC Certificate). The frontend takes the
+// `challenge` string returned by /login or /verify-otp, has it signed by the user's own DSC
+// token software (outside this app — see services/dsc.js header comment), and posts the
+// resulting signature here.
+router.post("/dsc-verify", async (req, res) => {
+  const { user_id, signature } = req.body || {};
+  if (!user_id || !signature) return res.status(400).json({ error: "user_id and signature are required" });
+  await db.read();
+  const user = db.data.users.find((u) => u.id === Number(user_id));
+  if (!user || !user.dsc_challenge || !user.dsc_challenge_expires_at) {
+    return res.status(401).json({ error: "No DSC challenge pending for this account. Please log in again." });
+  }
+  if (new Date(user.dsc_challenge_expires_at) < new Date()) {
+    user.dsc_challenge = null;
+    user.dsc_challenge_expires_at = null;
+    await save();
+    return res.status(401).json({ error: "DSC challenge expired. Please log in again." });
+  }
+  if (!user.dsc_cert_pem || !verifySignature(user.dsc_cert_pem, user.dsc_challenge, signature)) {
+    addAudit(user, "dsc_verification_failed", {});
+    return res.status(401).json({ error: "DSC signature verification failed" });
+  }
+  user.dsc_challenge = null;
+  user.dsc_challenge_expires_at = null;
+  await save();
+  addAudit(user, "dsc_verification_succeeded", {});
   const token = signToken(user);
   res.json({
     token,

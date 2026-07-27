@@ -21,6 +21,7 @@ const reportRoutes = require("./routes/reports");
 const settingsRoutes = require("./routes/settings");
 const ingestRoutes = require("./routes/ingest");
 const maintenanceRoutes = require("./routes/maintenance");
+const complianceRoutes = require("./routes/compliance");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -88,6 +89,7 @@ app.use("/api/analytics", requireAuth, analyticsRoutes);
 app.use("/api/reports", requireAuth, reportRoutes);
 app.use("/api/settings", requireAuth, settingsRoutes);
 app.use("/api/maintenance", requireAuth, maintenanceRoutes);
+app.use("/api/compliance", requireAuth, complianceRoutes);
 
 // Fallback to dashboard index (SPA-style)
 app.use((req, res) => {

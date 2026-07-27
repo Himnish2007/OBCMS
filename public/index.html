@@ -59,6 +59,7 @@
       <button class="nav-item" data-view="analytics" data-i18n="nav.analytics">Analytics</button>
       <button class="nav-item" data-view="alerts" data-i18n="nav.alerts">Alerts</button>
       <button class="nav-item" data-view="reports" data-i18n="nav.reports">Reports</button>
+      <button class="nav-item" data-view="compliance">MDTS Compliance</button>
       <button class="nav-item" data-view="rakes" data-i18n="nav.rakes">Rake Management</button>
       <button class="nav-item" data-view="coach-mgmt" data-i18n="nav.coachMgmt">Coach Management</button>
       <button class="nav-item admin-only" data-view="admin" data-i18n="nav.admin">Admin</button>
@@ -335,6 +336,69 @@
       </div>
     </section>
 
+    <!-- ===================== MDTS:44415 COMPLIANCE ===================== -->
+    <section id="view-compliance" class="view hidden">
+      <div class="card">
+        <div class="card-title">Wheel Flat / Shelling Risk — Part A pt.11</div>
+        <p class="muted">Vibration-signature proxy only (impact factor = peak/median of the last few axle readings). This is NOT a certified mm measurement — treat Orange/Red as "schedule a wheel inspection", and confirm actual shelling/flat size with RCF's profilometer/lathe reading.</p>
+        <table class="table" id="compliance-wheel-table">
+          <thead>
+            <tr><th>Coach</th><th>Axle</th><th>Band</th><th>Impact Factor</th><th>Checked At</th></tr>
+          </thead>
+          <tbody id="compliance-wheel-table-body"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Self-Diagnosis — Sensor &amp; DC Health</div>
+        <p class="muted">Axles/DCs are flagged automatically if a sensor goes silent past the configured threshold (Admin &gt; Alert Thresholds) or reports a stuck-at value while the coach is moving.</p>
+        <table class="table" id="compliance-diag-table">
+          <thead>
+            <tr><th>Coach</th><th>Axle</th><th>Sensor Health</th><th>Detail</th></tr>
+          </thead>
+          <tbody id="compliance-diag-table-body"></tbody>
+        </table>
+        <div class="card-title" style="margin-top:1rem;">RUT / DC Communication Health</div>
+        <table class="table" id="compliance-comm-table">
+          <thead>
+            <tr><th>Device</th><th>Coach</th><th>Comm Health</th><th>Last Seen</th></tr>
+          </thead>
+          <tbody id="compliance-comm-table-body"></tbody>
+        </table>
+      </div>
+
+      <div class="card" id="compliance-downtime-card">
+        <div class="card-title-row">
+          <div class="card-title">Downtime &amp; Penalty — Part C, Clause 10</div>
+          <div class="report-actions">
+            <select id="compliance-downtime-month"></select>
+            <select id="compliance-downtime-year"></select>
+          </div>
+        </div>
+        <p class="muted">Downtime % is measured against a coach's assigned RUT device going silent past Admin &gt; Alert Thresholds &gt; Downtime Threshold. Penalty % follows the Clause 10 slabs (&le;1.5% Nil, &gt;1.5-3% 2%, &gt;3-5% 5%, &gt;5-10% 10%, &gt;10% 20%). Enter each coach's monthly bill amount in Coach Management to see the ₹ penalty.</p>
+        <table class="table" id="compliance-downtime-table">
+          <thead>
+            <tr><th>Coach</th><th>Downtime Hrs</th><th>Downtime %</th><th>Penalty %</th><th>Monthly Bill (₹)</th><th>Penalty Amount (₹)</th></tr>
+          </thead>
+          <tbody id="compliance-downtime-table-body"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">SBC Telemetry Completeness — Part B section 1(e)</div>
+        <p class="muted">Checklist of the 21 canonical SBC parameters (HVAC/RMPU, Battery Charger, Network, Electrical) the spec expects via PICCU. Actual completeness depends on the real BNI00AJ point map being wired on each coach.</p>
+        <div class="report-actions">
+          <label>Coach:</label>
+          <select id="compliance-sbc-coach-select"></select>
+        </div>
+        <p id="compliance-sbc-summary" style="font-weight:600;margin:0.6rem 0;"></p>
+        <table class="table" id="compliance-sbc-table">
+          <thead><tr><th>Parameter</th><th>Group</th><th>Received</th></tr></thead>
+          <tbody id="compliance-sbc-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- ===================== RAKE MANAGEMENT ===================== -->
     <section id="view-rakes" class="view hidden">
       <div class="card-title-row" style="margin-bottom:0.8rem;">
@@ -432,6 +496,18 @@
               <label data-i18n="admin.thresholds.red">Red ≥</label><input type="number" id="th-temp-red" step="1" required />
             </div>
             <div class="threshold-group">
+              <h4>Wheel-Defect Impact Factor (Part A pt.11 proxy)</h4>
+              <p class="muted" style="margin:0 0 0.4rem;">peak/median ratio of recent axle vibration readings — a periodic-shock signature indicating possible wheel flat/shelling.</p>
+              <label>Yellow ≥</label><input type="number" id="th-wheel-yellow" step="0.1" required />
+              <label>Orange ≥</label><input type="number" id="th-wheel-orange" step="0.1" required />
+              <label>Red ≥</label><input type="number" id="th-wheel-red" step="0.1" required />
+            </div>
+            <div class="threshold-group">
+              <h4>Self-Diagnosis &amp; Downtime (Part A / Part C Cl.10)</h4>
+              <label>Sensor Stale Threshold (minutes)</label><input type="number" id="th-sensor-stale" min="1" max="1440" step="1" required />
+              <label>Downtime Threshold (minutes)</label><input type="number" id="th-downtime-threshold" min="1" max="1440" step="1" required />
+            </div>
+            <div class="threshold-group">
               <h4 data-i18n="admin.thresholds.logIntervalTitle">Data Logging Interval</h4>
               <p class="muted" style="margin:0 0 0.4rem;" data-i18n="admin.thresholds.logIntervalNote">How often a new reading is logged per axle.</p>
               <label data-i18n="admin.thresholds.logIntervalLabel">Log Interval (seconds)</label>
@@ -477,11 +553,22 @@
           <p class="muted" data-i18n="admin.notifications.sms.note">SMS delivery requires a paid SMS gateway account (e.g. Twilio, MSG91) — enter the provider details here once you have one. Until then, SMS attempts are logged only, not sent.</p>
           <form id="sms-form" class="threshold-form">
             <label><input type="checkbox" id="sms-enabled" style="width:auto;display:inline-block;margin-right:0.4rem;" /> <span data-i18n="admin.notifications.sms.enable">Enable SMS sending</span></label>
-            <label data-i18n="admin.notifications.sms.provider">Provider</label><input type="text" id="sms-provider" placeholder="e.g. twilio, msg91" />
+            <label data-i18n="admin.notifications.sms.provider">Provider (label only)</label><input type="text" id="sms-provider" placeholder="e.g. Fast2SMS, MSG91, Twilio" />
             <label data-i18n="admin.notifications.sms.apiKey">API Key</label><input type="password" id="sms-api-key" placeholder="Leave blank to keep unchanged" />
             <label data-i18n="admin.notifications.sms.senderId">Sender ID</label><input type="text" id="sms-sender-id" placeholder="e.g. HIMRLY" />
+            <h4 style="margin:0.6rem 0 0.2rem;">Generic Gateway Wiring (any REST/JSON SMS provider)</h4>
+            <label>HTTP Method</label>
+            <select id="sms-method"><option value="POST">POST</option><option value="GET">GET</option></select>
+            <label>Gateway URL</label><input type="text" id="sms-url" placeholder="https://your-gateway.example/send" />
+            <label>Headers (JSON)</label><input type="text" id="sms-headers" placeholder='{"authorization":"{{api_key}}","Content-Type":"application/json"}' />
+            <label>Body Template</label><input type="text" id="sms-body-template" placeholder='{"route":"q","message":"{{message}}","numbers":"{{phone}}"}' />
             <button type="submit" class="btn-primary" data-i18n="admin.notifications.sms.saveBtn">Save SMS Settings</button>
           </form>
+          <div style="margin-top:1rem;display:flex;gap:0.6rem;align-items:center;">
+            <input type="text" id="test-sms-to" placeholder="+91XXXXXXXXXX" style="flex:1;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:8px;" />
+            <button class="btn-secondary" id="send-test-sms-btn">Send Test SMS</button>
+          </div>
+          <p id="test-sms-result" class="modal-error"></p>
         </div>
 
         <div class="card">
@@ -489,6 +576,7 @@
           <p class="muted" data-i18n="admin.security.note">Requires a successfully tested SMTP configuration above — each login will need a one-time code emailed to the user.</p>
           <form id="security-form" class="threshold-form">
             <label><input type="checkbox" id="mfa-required" style="width:auto;display:inline-block;margin-right:0.4rem;" /> <span data-i18n="admin.security.mfaLabel">Require email OTP at login (MFA)</span></label>
+            <label><input type="checkbox" id="dsc-required" style="width:auto;display:inline-block;margin-right:0.4rem;" /> <span>Require DSC (Digital Signature Certificate) at login — only enforced for users with a certificate on file (Admin &gt; Users &gt; Edit)</span></label>
             <button type="submit" class="btn-primary" data-i18n="admin.security.saveBtn">Save Security Settings</button>
           </form>
           <p class="modal-error" id="security-error"></p>

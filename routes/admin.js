@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const { db, save, nextId, AXLES_PER_COACH, PICCU_SYSTEMS, addAudit } = require("../db/db");
 const { requireRole, validatePassword } = require("../services/auth");
 const { sendEmail } = require("../services/mailer");
+const { validateCertPem } = require("../services/dsc");
 
 const router = express.Router();
 const VALID_ROLES = ["Admin", "Supervisor", "Viewer"];
@@ -13,7 +14,34 @@ router.get("/users", requireRole(["Admin"]), async (req, res) => {
   res.json(db.data.users.map((u) => ({
     id: u.id, username: u.username, name: u.name, role: u.role,
     email: u.email || "", phone: u.phone || "", assigned_coaches: u.assigned_coaches || [],
+    has_dsc_certificate: !!u.dsc_cert_pem,
   })));
+});
+
+// DSC (Digital Signature Certificate) — Admin uploads the user's existing token's public
+// certificate (PEM). See services/dsc.js for the full challenge/response flow this enables.
+router.put("/users/:id/dsc-certificate", requireRole(["Admin"]), async (req, res) => {
+  const { cert_pem } = req.body || {};
+  if (!cert_pem || typeof cert_pem !== "string") return res.status(400).json({ error: "cert_pem (PEM text) is required" });
+  const result = validateCertPem(cert_pem);
+  if (!result.valid) return res.status(400).json({ error: result.error });
+  await db.read();
+  const user = db.data.users.find((u) => u.id === Number(req.params.id));
+  if (!user) return res.status(404).json({ error: "User not found" });
+  user.dsc_cert_pem = cert_pem;
+  await save();
+  addAudit(req.user, "dsc_certificate_uploaded", { target_username: user.username, subject: result.subject, valid_to: result.validTo });
+  res.json({ success: true, subject: result.subject, valid_to: result.validTo });
+});
+
+router.delete("/users/:id/dsc-certificate", requireRole(["Admin"]), async (req, res) => {
+  await db.read();
+  const user = db.data.users.find((u) => u.id === Number(req.params.id));
+  if (!user) return res.status(404).json({ error: "User not found" });
+  user.dsc_cert_pem = null;
+  await save();
+  addAudit(req.user, "dsc_certificate_removed", { target_username: user.username });
+  res.json({ success: true });
 });
 
 router.post("/users", requireRole(["Admin"]), async (req, res) => {
@@ -125,10 +153,15 @@ router.put("/coaches/:id", requireRole(["Admin", "Supervisor"]), async (req, res
   await db.read();
   const coach = db.data.coaches.find((c) => c.id === Number(req.params.id));
   if (!coach) return res.status(404).json({ error: "Coach not found" });
-  const { coach_type, status, position } = req.body || {};
+  const { coach_type, status, position, monthly_bill_amount } = req.body || {};
   if (coach_type) coach.coach_type = coach_type;
   if (status) coach.status = status;
   if (position) coach.position = position;
+  if (monthly_bill_amount !== undefined) {
+    const amt = Number(monthly_bill_amount);
+    if (Number.isNaN(amt) || amt < 0) return res.status(400).json({ error: "monthly_bill_amount must be a non-negative number" });
+    coach.monthly_bill_amount = amt; // Part C Clause 10 — used to compute ₹ penalty from downtime %
+  }
   await save();
   res.json(coach);
 });
@@ -160,7 +193,7 @@ router.get("/thresholds", requireRole(["Admin", "Supervisor"]), async (req, res)
 });
 
 router.put("/thresholds", requireRole(["Admin"]), async (req, res) => {
-  const { vibration, temperature, log_interval_seconds } = req.body || {};
+  const { vibration, temperature, wheel_defect_impact_factor, log_interval_seconds } = req.body || {};
   await db.read();
   if (vibration) {
     const { yellow, orange, red } = vibration;
@@ -175,6 +208,13 @@ router.put("/thresholds", requireRole(["Admin"]), async (req, res) => {
       return res.status(400).json({ error: "Temperature thresholds must be numeric and increasing: yellow < orange < red" });
     }
     db.data.thresholds.temperature = { yellow, orange, red };
+  }
+  if (wheel_defect_impact_factor) {
+    const { yellow, orange, red } = wheel_defect_impact_factor;
+    if ([yellow, orange, red].some((v) => typeof v !== "number") || !(yellow < orange && orange < red)) {
+      return res.status(400).json({ error: "Wheel-defect impact-factor thresholds must be numeric and increasing: yellow < orange < red" });
+    }
+    db.data.thresholds.wheel_defect_impact_factor = { yellow, orange, red };
   }
   if (log_interval_seconds !== undefined) {
     if (typeof log_interval_seconds !== "number" || log_interval_seconds < 2 || log_interval_seconds > 3600) {
@@ -224,6 +264,10 @@ router.put("/notifications", requireRole(["Admin"]), async (req, res) => {
       provider: sms.provider ?? db.data.settings.sms.provider,
       api_key: sms.api_key && sms.api_key !== "••••••••" ? sms.api_key : db.data.settings.sms.api_key,
       sender_id: sms.sender_id ?? db.data.settings.sms.sender_id,
+      method: sms.method ?? db.data.settings.sms.method,
+      url: sms.url ?? db.data.settings.sms.url,
+      headers: sms.headers ?? db.data.settings.sms.headers,
+      body_template: sms.body_template ?? db.data.settings.sms.body_template,
     };
   }
   await save();
@@ -246,24 +290,60 @@ router.post("/notifications/test-email", requireRole(["Admin"]), async (req, res
   res.json(log);
 });
 
-// ---------------- Security: mandatory email-OTP MFA ----------------
+router.post("/notifications/test-sms", requireRole(["Admin"]), async (req, res) => {
+  const { to } = req.body || {};
+  if (!to) return res.status(400).json({ error: "Provide a 'to' phone number" });
+  const { sendSms } = require("../services/sms");
+  const log = await sendSms({ toPhone: to, message: "Himnish OBCMS & PICCU — this is a test SMS confirming your gateway configuration is working." });
+  res.json(log);
+});
+
+// ---------------- Security: MFA (email-OTP), DSC, self-diagnosis staleness, downtime threshold ----------------
 router.get("/security", requireRole(["Admin"]), async (req, res) => {
   await db.read();
-  res.json({ mfa_required: !!db.data.settings.mfa_required, smtp_enabled: !!db.data.settings.smtp.enabled });
+  res.json({
+    mfa_required: !!db.data.settings.mfa_required,
+    smtp_enabled: !!db.data.settings.smtp.enabled,
+    dsc_required: !!db.data.settings.dsc_required,
+    users_with_dsc: db.data.users.filter((u) => u.dsc_cert_pem).length,
+    sensor_stale_minutes: db.data.settings.sensor_stale_minutes,
+    downtime_threshold_minutes: db.data.settings.downtime_threshold_minutes,
+  });
 });
 
 router.put("/security", requireRole(["Admin"]), async (req, res) => {
-  const { mfa_required } = req.body || {};
+  const { mfa_required, dsc_required, sensor_stale_minutes, downtime_threshold_minutes } = req.body || {};
   await db.read();
   if (mfa_required === true && !db.data.settings.smtp.enabled) {
     return res.status(400).json({
       error: "Enable and test SMTP in Admin > Notifications first — MFA emails a one-time code, and turning it on without working SMTP would lock everyone out.",
     });
   }
+  if (dsc_required === true && !db.data.users.some((u) => u.dsc_cert_pem)) {
+    return res.status(400).json({
+      error: "Upload at least one user's DSC certificate first (Admin > Users > DSC Certificate) — otherwise enabling this has no effect.",
+    });
+  }
   if (mfa_required !== undefined) db.data.settings.mfa_required = !!mfa_required;
+  if (dsc_required !== undefined) db.data.settings.dsc_required = !!dsc_required;
+  if (sensor_stale_minutes !== undefined) {
+    const v = Number(sensor_stale_minutes);
+    if (Number.isNaN(v) || v < 1 || v > 1440) return res.status(400).json({ error: "sensor_stale_minutes must be between 1 and 1440" });
+    db.data.settings.sensor_stale_minutes = v;
+  }
+  if (downtime_threshold_minutes !== undefined) {
+    const v = Number(downtime_threshold_minutes);
+    if (Number.isNaN(v) || v < 1 || v > 1440) return res.status(400).json({ error: "downtime_threshold_minutes must be between 1 and 1440" });
+    db.data.settings.downtime_threshold_minutes = v;
+  }
   await save();
-  addAudit(req.user, "mfa_setting_changed", { mfa_required: !!mfa_required });
-  res.json({ mfa_required: !!db.data.settings.mfa_required });
+  addAudit(req.user, "security_settings_changed", { mfa_required, dsc_required, sensor_stale_minutes, downtime_threshold_minutes });
+  res.json({
+    mfa_required: !!db.data.settings.mfa_required,
+    dsc_required: !!db.data.settings.dsc_required,
+    sensor_stale_minutes: db.data.settings.sensor_stale_minutes,
+    downtime_threshold_minutes: db.data.settings.downtime_threshold_minutes,
+  });
 });
 
 // ---------------- Audit log (user mgmt, threshold/notification changes, lockouts) ----------------

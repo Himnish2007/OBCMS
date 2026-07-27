@@ -71,6 +71,10 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
       promptForOtp(data.user_id);
       return;
     }
+    if (data.dsc_required) {
+      promptForDsc(data.user_id, data.challenge);
+      return;
+    }
     completeLogin(data);
   } catch (err) {
     errorEl.textContent = err.message;
@@ -108,6 +112,45 @@ function promptForOtp(userId) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId, otp }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || t("common.requestFailed"));
+      closeModal();
+      if (data.dsc_required) {
+        promptForDsc(data.user_id, data.challenge);
+        return;
+      }
+      completeLogin(data);
+    } catch (err) {
+      errEl.textContent = err.message;
+    }
+  });
+}
+
+// DSC (Digital Signature Certificate) step — only reached if Admin > Security > "Require DSC
+// at login" is on AND this account has a certificate on file. The user signs the challenge with
+// their own DSC token's signer software (outside this app, same as e-Tendering/GST portals) and
+// pastes the resulting Base64 signature here.
+function promptForDsc(userId, challenge) {
+  openModal(`
+    <h3>DSC Signature Required</h3>
+    <p class="muted">Sign the challenge below with your DSC token's signer utility (using the private key on your USB token), then paste the resulting Base64 signature here.</p>
+    <div class="code-block" style="word-break:break-all;font-size:0.8em;">${challenge}</div>
+    <form id="dsc-form">
+      <textarea id="dsc-signature" rows="4" placeholder="Paste Base64 signature here" required></textarea>
+      <div class="modal-error" id="dsc-error"></div>
+      <button type="submit" class="btn-primary">Verify &amp; Sign In</button>
+    </form>
+  `);
+  document.getElementById("dsc-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const signature = document.getElementById("dsc-signature").value.trim();
+    const errEl = document.getElementById("dsc-error");
+    try {
+      const res = await fetch(API + "/auth/dsc-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, signature }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || t("common.requestFailed"));
@@ -194,6 +237,7 @@ function loadView(view) {
   if (view === "analytics") loadAnalytics();
   if (view === "alerts") loadAlerts();
   if (view === "reports") loadReports();
+  if (view === "compliance") loadCompliance();
   if (view === "rakes") loadRakes();
   if (view === "coach-mgmt") loadCoachManagement();
   if (view === "admin") loadAdmin();
@@ -796,6 +840,126 @@ async function loadReports() {
   } catch (err) { console.error(err); }
 }
 
+// ---------------- MDTS:44415 Compliance (wheel-defect / self-diagnosis / downtime / SBC) ----------------
+async function loadCompliance() {
+  await Promise.all([
+    loadComplianceWheelDefect(),
+    loadComplianceDiagnosis(),
+    loadComplianceDowntime(),
+    loadComplianceSbc(),
+  ]);
+}
+
+async function loadComplianceWheelDefect() {
+  try {
+    const rows = await apiFetch("/compliance/wheel-defect");
+    const body = document.getElementById("compliance-wheel-table-body");
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="5" class="muted">No Yellow/Orange/Red wheel-defect risk currently flagged on any accessible coach.</td></tr>`;
+      return;
+    }
+    body.innerHTML = rows.map((r) => `
+      <tr>
+        <td>${escapeHtml(r.coach_number || "-")}</td>
+        <td>${r.axle_number}</td>
+        <td><span class="band-pill" style="background:${bandColor(r.band)};color:#fff;">${r.band}</span></td>
+        <td>${r.impact_factor != null ? r.impact_factor + "x" : "-"}</td>
+        <td>${r.checked_at ? new Date(r.checked_at).toLocaleString() : "-"}</td>
+      </tr>
+    `).join("");
+  } catch (err) { console.error(err); }
+}
+
+async function loadComplianceDiagnosis() {
+  try {
+    const { axles, devices } = await apiFetch("/compliance/self-diagnosis");
+    const flagged = axles.filter((a) => a.sensor_health !== "OK");
+    const diagBody = document.getElementById("compliance-diag-table-body");
+    diagBody.innerHTML = flagged.length
+      ? flagged.map((a) => `
+        <tr>
+          <td>${escapeHtml(a.coach_number || "-")}</td>
+          <td>${a.axle_number}</td>
+          <td><span class="band-pill" style="background:${a.sensor_health === "FAULT" ? bandColor("ORANGE") : a.sensor_health === "STALE" ? bandColor("YELLOW") : "#5b6b7f"};color:#fff;">${a.sensor_health}</span></td>
+          <td>${escapeHtml(a.detail || "-")}</td>
+        </tr>
+      `).join("")
+      : `<tr><td colspan="4" class="muted">All accessible axle sensors reporting OK.</td></tr>`;
+
+    const commBody = document.getElementById("compliance-comm-table-body");
+    commBody.innerHTML = devices.length
+      ? devices.map((d) => `
+        <tr>
+          <td>${escapeHtml(d.device_label)}</td>
+          <td>${escapeHtml(d.coach_number || "-")}</td>
+          <td><span class="band-pill" style="background:${d.comm_health === "FAULT" ? bandColor("RED") : "#2e7d32"};color:#fff;">${d.comm_health}</span></td>
+          <td>${d.last_seen_at ? new Date(d.last_seen_at).toLocaleString() : "Never"}</td>
+        </tr>
+      `).join("")
+      : `<tr><td colspan="4" class="muted">No RUT devices assigned to any accessible coach.</td></tr>`;
+  } catch (err) { console.error(err); }
+}
+
+function populateComplianceDowntimePeriodSelectors() {
+  const monthSel = document.getElementById("compliance-downtime-month");
+  const yearSel = document.getElementById("compliance-downtime-year");
+  if (monthSel.options.length) return; // already populated once
+  const now = new Date();
+  monthSel.innerHTML = Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">${new Date(2000, i, 1).toLocaleString("en", { month: "long" })}</option>`).join("");
+  monthSel.value = now.getMonth() + 1;
+  yearSel.innerHTML = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => `<option value="${y}">${y}</option>`).join("");
+  yearSel.value = now.getFullYear();
+  monthSel.addEventListener("change", loadComplianceDowntime);
+  yearSel.addEventListener("change", loadComplianceDowntime);
+}
+
+async function loadComplianceDowntime() {
+  const card = document.getElementById("compliance-downtime-card");
+  if (USER.role === "Viewer") { card.classList.add("hidden"); return; }
+  card.classList.remove("hidden");
+  populateComplianceDowntimePeriodSelectors();
+  const month = document.getElementById("compliance-downtime-month").value;
+  const year = document.getElementById("compliance-downtime-year").value;
+  try {
+    const rows = await apiFetch(`/compliance/downtime?year=${year}&month=${month}`);
+    const body = document.getElementById("compliance-downtime-table-body");
+    body.innerHTML = rows.length
+      ? rows.map((r) => `
+        <tr>
+          <td>${escapeHtml(r.coach_number)}</td>
+          <td>${r.downtime_hours}</td>
+          <td>${r.downtime_pct}%</td>
+          <td>${r.penalty_pct}%</td>
+          <td>${r.monthly_bill_amount.toLocaleString("en-IN")}</td>
+          <td>${r.penalty_amount.toLocaleString("en-IN")}</td>
+        </tr>
+      `).join("")
+      : `<tr><td colspan="6" class="muted">No data for this period.</td></tr>`;
+  } catch (err) { console.error(err); }
+}
+
+async function loadComplianceSbc() {
+  const sel = document.getElementById("compliance-sbc-coach-select");
+  if (!sel.options.length) {
+    sel.innerHTML = COACHES.map((c) => `<option value="${c.id}">${escapeHtml(c.coach_number)}</option>`).join("");
+    sel.addEventListener("change", loadComplianceSbc);
+  }
+  const coachId = sel.value || (COACHES[0] && COACHES[0].id);
+  if (!coachId) return;
+  try {
+    const result = await apiFetch(`/compliance/sbc-completeness/${coachId}`);
+    document.getElementById("compliance-sbc-summary").textContent =
+      `${result.received_count} / ${result.total_parameters} parameters received (${result.completeness_pct}%)`;
+    document.getElementById("compliance-sbc-table-body").innerHTML = result.checklist.map((p) => `
+      <tr>
+        <td>${escapeHtml(p.label)}</td>
+        <td>${escapeHtml(p.group)}</td>
+        <td>${p.received ? "✅" : "—"}</td>
+      </tr>
+    `).join("");
+  } catch (err) { console.error(err); }
+}
+
 async function downloadCsv(path, filename) {
   try {
     const res = await fetch(API + path, { headers: { Authorization: "Bearer " + TOKEN } });
@@ -1232,6 +1396,12 @@ async function editUser(id) {
       <label>${t("admin.users.modal.newPassword")}</label><input type="password" id="ue-password" minlength="6" />
       <label>${t("admin.users.modal.assignedCoaches")}</label>
       ${coachCheckboxListHtml(u.assigned_coaches)}
+      <label>DSC Certificate (PEM) ${u.has_dsc_certificate ? '<span class="muted">— currently on file</span>' : ""}</label>
+      <textarea id="ue-dsc-pem" rows="4" placeholder="Paste the user's DSC token's public certificate, -----BEGIN CERTIFICATE----- ... -----END CERTIFICATE-----"></textarea>
+      <div class="report-actions" style="margin:0.3rem 0 0.6rem;">
+        <button type="button" class="btn-secondary" id="ue-dsc-upload-btn">Upload DSC Certificate</button>
+        ${u.has_dsc_certificate ? '<button type="button" class="btn-danger" id="ue-dsc-remove-btn">Remove DSC Certificate</button>' : ""}
+      </div>
       <p class="modal-error" id="user-edit-error"></p>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="closeModal()">${t("common.cancel")}</button>
@@ -1239,6 +1409,25 @@ async function editUser(id) {
       </div>
     </form>
   `);
+  document.getElementById("ue-dsc-upload-btn").addEventListener("click", async () => {
+    const cert_pem = document.getElementById("ue-dsc-pem").value.trim();
+    if (!cert_pem) { document.getElementById("user-edit-error").textContent = "Paste the certificate PEM text first."; return; }
+    try {
+      await apiFetch(`/admin/users/${id}/dsc-certificate`, { method: "PUT", body: JSON.stringify({ cert_pem }) });
+      showToast("DSC certificate uploaded", "success");
+      closeModal();
+      editUser(id);
+    } catch (err) { document.getElementById("user-edit-error").textContent = err.message; }
+  });
+  const removeBtn = document.getElementById("ue-dsc-remove-btn");
+  if (removeBtn) removeBtn.addEventListener("click", async () => {
+    try {
+      await apiFetch(`/admin/users/${id}/dsc-certificate`, { method: "DELETE" });
+      showToast("DSC certificate removed", "success");
+      closeModal();
+      editUser(id);
+    } catch (err) { document.getElementById("user-edit-error").textContent = err.message; }
+  });
   document.getElementById("user-edit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
@@ -1336,6 +1525,8 @@ async function editCoach(id) {
         <option value="Maintenance" ${c.status === "Maintenance" ? "selected" : ""}>${t("admin.coaches.status.Maintenance")}</option>
         <option value="Withdrawn" ${c.status === "Withdrawn" ? "selected" : ""}>${t("admin.coaches.status.Withdrawn")}</option>
       </select>
+      <label>Monthly Bill Amount (₹) — used for Part C Clause 10 penalty calc</label>
+      <input type="number" id="ce-bill" min="0" step="1" value="${c.monthly_bill_amount || 0}" />
       <p class="modal-error" id="coach-edit-error"></p>
       <div class="modal-actions">
         <button type="button" class="btn-secondary" onclick="closeModal()">${t("common.cancel")}</button>
@@ -1348,7 +1539,11 @@ async function editCoach(id) {
     try {
       await apiFetch(`/admin/coaches/${id}`, {
         method: "PUT",
-        body: JSON.stringify({ coach_type: document.getElementById("ce-type").value.trim(), status: document.getElementById("ce-status").value }),
+        body: JSON.stringify({
+          coach_type: document.getElementById("ce-type").value.trim(),
+          status: document.getElementById("ce-status").value,
+          monthly_bill_amount: Number(document.getElementById("ce-bill").value) || 0,
+        }),
       });
       closeModal();
       showToast(t("admin.coaches.toast.updated"), "success");
@@ -1382,6 +1577,16 @@ async function loadAdminThresholds() {
   document.getElementById("th-temp-orange").value = th.temperature.orange;
   document.getElementById("th-temp-red").value = th.temperature.red;
   document.getElementById("log-interval-input").value = th.log_interval_seconds;
+  if (th.wheel_defect_impact_factor) {
+    document.getElementById("th-wheel-yellow").value = th.wheel_defect_impact_factor.yellow;
+    document.getElementById("th-wheel-orange").value = th.wheel_defect_impact_factor.orange;
+    document.getElementById("th-wheel-red").value = th.wheel_defect_impact_factor.red;
+  }
+  try {
+    const sec = await apiFetch("/admin/security");
+    document.getElementById("th-sensor-stale").value = sec.sensor_stale_minutes;
+    document.getElementById("th-downtime-threshold").value = sec.downtime_threshold_minutes;
+  } catch (err) { /* Supervisor role can't read /admin/security — thresholds tab still works */ }
 }
 
 document.getElementById("thresholds-form").addEventListener("submit", async (e) => {
@@ -1400,9 +1605,23 @@ document.getElementById("thresholds-form").addEventListener("submit", async (e) 
           orange: Number(document.getElementById("th-temp-orange").value),
           red: Number(document.getElementById("th-temp-red").value),
         },
+        wheel_defect_impact_factor: {
+          yellow: Number(document.getElementById("th-wheel-yellow").value),
+          orange: Number(document.getElementById("th-wheel-orange").value),
+          red: Number(document.getElementById("th-wheel-red").value),
+        },
         log_interval_seconds: Number(document.getElementById("log-interval-input").value),
       }),
     });
+    if (USER.role === "Admin") {
+      await apiFetch("/admin/security", {
+        method: "PUT",
+        body: JSON.stringify({
+          sensor_stale_minutes: Number(document.getElementById("th-sensor-stale").value),
+          downtime_threshold_minutes: Number(document.getElementById("th-downtime-threshold").value),
+        }),
+      });
+    }
     showToast(t("admin.thresholds.toast.updated"), "success");
   } catch (err) { showToast(err.message, "error"); }
 });
@@ -1427,6 +1646,10 @@ async function loadAdminNotifications() {
   document.getElementById("sms-api-key").value = "";
   document.getElementById("sms-api-key").placeholder = n.sms.api_key ? t("admin.notifications.smtp.passUnchanged") : t("admin.notifications.smtp.passBlank");
   document.getElementById("sms-sender-id").value = n.sms.sender_id;
+  document.getElementById("sms-method").value = n.sms.method || "POST";
+  document.getElementById("sms-url").value = n.sms.url || "";
+  document.getElementById("sms-headers").value = n.sms.headers || "";
+  document.getElementById("sms-body-template").value = n.sms.body_template || "";
 }
 
 document.getElementById("daily-report-form").addEventListener("submit", async (e) => {
@@ -1474,12 +1697,30 @@ document.getElementById("sms-form").addEventListener("submit", async (e) => {
           provider: document.getElementById("sms-provider").value.trim(),
           api_key: document.getElementById("sms-api-key").value,
           sender_id: document.getElementById("sms-sender-id").value.trim(),
+          method: document.getElementById("sms-method").value,
+          url: document.getElementById("sms-url").value.trim(),
+          headers: document.getElementById("sms-headers").value.trim(),
+          body_template: document.getElementById("sms-body-template").value.trim(),
         },
       }),
     });
     showToast(t("admin.notifications.sms.toastSaved"), "success");
     loadAdminNotifications();
   } catch (err) { showToast(err.message, "error"); }
+});
+
+document.getElementById("send-test-sms-btn").addEventListener("click", async () => {
+  const to = document.getElementById("test-sms-to").value.trim();
+  const resultEl = document.getElementById("test-sms-result");
+  if (!to) { resultEl.style.color = "var(--red)"; resultEl.textContent = "Enter a recipient phone number first."; return; }
+  resultEl.textContent = "Sending...";
+  resultEl.style.color = "";
+  try {
+    const log = await apiFetch("/admin/notifications/test-sms", { method: "POST", body: JSON.stringify({ to }) });
+    if (log.status === "sent") { resultEl.style.color = "var(--green)"; resultEl.textContent = "Test SMS sent successfully."; }
+    else if (log.status === "simulated") { resultEl.style.color = "var(--orange)"; resultEl.textContent = "Not actually sent — " + log.detail; }
+    else { resultEl.style.color = "var(--red)"; resultEl.textContent = "Failed: " + log.detail; }
+  } catch (err) { resultEl.style.color = "var(--red)"; resultEl.textContent = err.message; }
 });
 
 document.getElementById("send-test-email-btn").addEventListener("click", async () => {
@@ -1501,6 +1742,7 @@ async function loadAdminSecurity() {
   try {
     const sec = await apiFetch("/admin/security");
     document.getElementById("mfa-required").checked = !!sec.mfa_required;
+    document.getElementById("dsc-required").checked = !!sec.dsc_required;
   } catch (err) { /* non-fatal — panel just stays at defaults */ }
 }
 
@@ -1511,7 +1753,10 @@ document.getElementById("security-form").addEventListener("submit", async (e) =>
   try {
     await apiFetch("/admin/security", {
       method: "PUT",
-      body: JSON.stringify({ mfa_required: document.getElementById("mfa-required").checked }),
+      body: JSON.stringify({
+        mfa_required: document.getElementById("mfa-required").checked,
+        dsc_required: document.getElementById("dsc-required").checked,
+      }),
     });
     showToast(t("common.saveChanges") || "Saved", "success");
   } catch (err) { errEl.textContent = err.message; }

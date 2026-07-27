@@ -39,6 +39,8 @@
 const { db, save, nextId } = require("../db/db");
 const { bandFor, worstBand } = require("./bands");
 const { notifyAlert } = require("./notify");
+const { evaluateWheelDefect } = require("./wheelDefect");
+const { markDeviceUp } = require("./downtime");
 
 const MAX_READINGS_PER_AXLE = 40;
 const MAX_TELEMETRY_PER_PARAM = 30;
@@ -151,8 +153,19 @@ async function processPush(payload) {
           notifyAlert(newAlert, coach).catch((err) => console.error("notifyAlert error:", err.message));
         }
       }
+
+      // Wheel flat/shelling risk (MDTS:44415 Part A pt.11) — vibration-signature proxy,
+      // evaluated on the same rolling reading history right after it's updated above.
+      const wheelAlert = evaluateWheelDefect(axle, coach);
+      if (wheelAlert) {
+        notifyAlert(wheelAlert, coach).catch((err) => console.error("notifyAlert (wheel defect) error:", err.message));
+      }
     }
   }
+
+  // Part C Clause 10 downtime tracking: a successful push always means the link is up —
+  // close any open DOWN period logged for this coach immediately.
+  markDeviceUp(coach.id);
 
   if (payload.wli_tank_level_pct !== undefined) {
     const pct = Number(payload.wli_tank_level_pct);

@@ -134,6 +134,54 @@ Admin > Users.
 - DSC (Digital Signature Certificate) authentication is not implemented (see Security
   section above) — needs a vendor/library decision first.
 
+## MDTS:44415 Rev.02/03 gap-closure additions (v2)
+
+Everything below was added on top of the original build to close the gaps identified in the
+spec-vs-app compliance review (Rev.02 and Rev.03 — Part B/PICCU is unchanged between the two
+revisions, so this closes both):
+
+- **Wheel flat/shelling risk (Part A pt.11)** — `services/wheelDefect.js`. Real limitation, stated
+  honestly: this dashboard has no profilometer, so it cannot measure an actual flat/shelling size in
+  mm. What it does instead is flag the *vibration signature* of one (a periodic per-revolution impact
+  spike far above the axle's rolling median) as a Green/Yellow/Orange/Red risk proxy, same banding
+  concept as the rest of OBCMS. Treat Orange/Red as "go inspect the wheel", not a certified reading.
+- **Self-diagnosis (Part A pt.1/23, Part B misc.)** — `services/selfDiagnosis.js`, swept every minute.
+  Flags an axle STALE if it's gone silent past Settings > Sensor Stale Threshold, or FAULT if it's
+  reporting a stuck-at value while the coach is moving. RUT/DC communication health is tracked the
+  same way from `rutDevices[].last_seen_at`.
+- **Downtime & Penalty (Part C, Clause 10)** — `services/downtime.js`. Logs every UP/DOWN transition
+  per coach, computes monthly downtime % and maps it to the Clause 10 penalty slabs (≤1.5% Nil,
+  >1.5–3% 2%, >3–5% 5%, >5–10% 10%, >10% 20%), and turns that into a ₹ figure using each coach's
+  Monthly Bill Amount (Admin > Coach Management > Edit).
+- **DSC (Digital Signature Certificate) login** — `services/dsc.js` + `/api/auth/dsc-verify`. Real
+  X.509 challenge/response verification via Node's `crypto`, the same pattern used by IREPS/GST/
+  e-Tendering portals: Admin uploads the user's existing DSC token's public certificate, the server
+  issues a nonce, the user's own DSC signer software (outside this app — that's how DSC always
+  works, the private key never leaves their token) signs it, and the signature is verified here.
+- **SMS is now a generic REST bridge**, not a single hardcoded vendor — `services/sms.js`. Any
+  HTTP/JSON SMS gateway (Fast2SMS, MSG91, Twilio, a company relay, etc.) can be wired purely through
+  Admin > Notifications > SMS (method/URL/headers/body template with `{{phone}}`/`{{message}}`
+  placeholders) with zero code changes.
+- **SBC telemetry completeness checklist (Part B section 1(e))** — canonical 21-parameter reference
+  list (`db/db.js` `SBC_PARAMETERS`, matching HVAC/RMPU, Battery Charger, Network, Electrical exactly)
+  with a live "X / 21 received" view per coach (MDTS Compliance tab). Actual data still depends on
+  the real BNI00AJ point map being wired per coach variant — this gives visibility, not the wiring.
+- **New "MDTS Compliance" dashboard tab** — wheel-defect risk table, self-diagnosis + comm-health
+  tables, downtime/penalty report (month/year picker), SBC completeness checklist per coach.
+- **New/changed API routes**: `GET/PUT /api/admin/security` (now includes `dsc_required`,
+  `sensor_stale_minutes`, `downtime_threshold_minutes`), `PUT/DELETE /api/admin/users/:id/dsc-certificate`,
+  `PUT /api/admin/thresholds` (now includes `wheel_defect_impact_factor`), `PUT /api/admin/coaches/:id`
+  (now includes `monthly_bill_amount`), `POST /api/admin/notifications/test-sms`, and the whole new
+  `/api/compliance/*` router (`wheel-defect`, `self-diagnosis`, `downtime`, `sbc-completeness/:coach_id`).
+
+**Still explicitly out of scope / needs a decision beyond code:**
+- Native Android/iOS apps for passengers and railway users (Part B g/h) — a separate mobile project,
+  not something that fits inside this Node/web codebase.
+- IEC 62443 accredited-body certification, ISO 9001, country-of-origin declarations — organizational/
+  bidding paperwork, not application code.
+- The real BNI00AJ SBC point map per coach variant (RDSO/OEM confirmation needed) — the 21-parameter
+  checklist above is ready to receive it once known.
+
 ## Run locally
 
 ```bash
