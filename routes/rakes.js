@@ -69,7 +69,7 @@ router.post("/", requireRole(["Admin", "Supervisor"]), async (req, res) => {
       }
       PICCU_SYSTEMS.forEach((sys) => {
         db.data.piccuSystems.push({
-          id: nextId(db.data.piccuSystems), coach_id: coach.id, system_name: sys, status: "Online", last_update: new Date().toISOString(),
+          id: nextId(db.data.piccuSystems), coach_id: coach.id, system_name: sys, status: "No Data", last_update: new Date().toISOString(),
         });
       });
       createdCoaches.push(coach);

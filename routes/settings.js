@@ -119,4 +119,19 @@ router.get("/rut-reassign-log", requireRole(["Admin", "Supervisor"]), async (req
   res.json(log.slice(0, 100));
 });
 
+// ---------------- Clear simulated/demo sensor data ----------------
+// Wipes readings, alerts, and PICCU telemetry, and resets every PICCU system's status
+// back to "No Data" — used when finalizing a deployment so nothing left over from
+// Simulated Data mode is mistaken for real hardware readings. Coaches, rakes, users,
+// and RUT device registrations are untouched.
+router.post("/clear-simulated-data", requireRole("Admin"), async (req, res) => {
+  await db.read();
+  db.data.readings = [];
+  db.data.alerts = [];
+  db.data.piccuTelemetry = [];
+  db.data.piccuSystems.forEach((p) => { p.status = "No Data"; p.last_update = null; });
+  await save();
+  res.json({ success: true });
+});
+
 module.exports = router;

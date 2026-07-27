@@ -123,7 +123,7 @@ async function init() {
   });
 
   if (!db.data.meta.seeded) {
-    db.data.hardware.data_source = (process.env.DEMO_MODE || "true") === "true" ? "demo" : "live";
+    db.data.hardware.data_source = (process.env.DEMO_MODE || "false") === "true" ? "demo" : "live";
 
     // Users — Admin, Supervisor, Viewer
     const mkUser = (id, username, password, role, name, email, phone, assigned_coaches) => ({
@@ -168,7 +168,7 @@ async function init() {
           id: nextId(db.data.piccuSystems),
           coach_id: coachId,
           system_name: sys,
-          status: "Online",
+          status: "No Data",
           last_update: new Date().toISOString(),
         });
       });

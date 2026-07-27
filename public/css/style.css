@@ -130,6 +130,7 @@ body {
 .band-strip { display: flex; gap: 0.8rem; margin-bottom: 1.3rem; }
 .band-chip { flex: 1; padding: 0.7rem; border-radius: 10px; color: #fff; font-weight: 700; font-size: 0.82rem; text-align: center; }
 .band-chip span { display: block; font-size: 1.4rem; margin-top: 0.15rem; }
+.band-chip.nodata { background: #64748a; }
 .band-chip.green { background: var(--green); }
 .band-chip.yellow { background: var(--yellow); }
 .band-chip.orange { background: var(--orange); }
@@ -146,6 +147,7 @@ body {
 .table tr:hover td { background: #fafcff; }
 
 .band-pill { padding: 0.22rem 0.6rem; border-radius: 20px; color: #fff; font-size: 0.72rem; font-weight: 700; display: inline-block; }
+.band-pill.NODATA { background: #64748a; }
 .band-pill.GREEN { background: var(--green); }
 .band-pill.YELLOW { background: var(--yellow); }
 .band-pill.ORANGE { background: var(--orange); }
@@ -155,6 +157,7 @@ body {
 .status-pill.Online { background: #e4f3e5; color: var(--green); }
 .status-pill.Fault { background: #fdecea; color: var(--red); }
 .status-pill.Offline { background: #f0f1f3; color: var(--text-muted); }
+.status-pill.NoData { background: #eef0f3; color: #64748a; }
 
 .btn-small { background: var(--navy); color: #fff; border: none; padding: 0.35rem 0.7rem; border-radius: 6px; font-size: 0.75rem; cursor: pointer; }
 .btn-small:hover { background: var(--navy-dark); }
@@ -310,6 +313,7 @@ body.role-Admin .nav-item.admin-only { display: block; }
   width: 26px; height: 26px; border-radius: 5px; display: flex; align-items: center; justify-content: center;
   font-size: 0.65rem; font-weight: 700; color: #fff;
 }
+.axle-cell.NODATA { background: #64748a; }
 .axle-cell.GREEN { background: var(--green); }
 .axle-cell.YELLOW { background: var(--yellow); }
 .axle-cell.ORANGE { background: var(--orange); }

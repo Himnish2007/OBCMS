@@ -80,15 +80,16 @@ router.get("/coach/:id", requireCoachAccess, async (req, res) => {
   const alertsBySeverity = { Critical: 0, High: 0 };
   alerts.forEach((a) => { alertsBySeverity[a.severity] = (alertsBySeverity[a.severity] || 0) + 1; });
 
-  const avgVibration = axles.filter((a) => a.latest).reduce((s, a) => s + a.latest.vibration_g, 0) / (axles.filter((a) => a.latest).length || 1);
-  const avgTemperature = axles.filter((a) => a.latest).reduce((s, a) => s + a.latest.temperature_c, 0) / (axles.filter((a) => a.latest).length || 1);
+  const axlesWithData = axles.filter((a) => a.latest);
+  const avgVibration = axlesWithData.length ? axlesWithData.reduce((s, a) => s + a.latest.vibration_g, 0) / axlesWithData.length : null;
+  const avgTemperature = axlesWithData.length ? axlesWithData.reduce((s, a) => s + a.latest.temperature_c, 0) / axlesWithData.length : null;
 
   res.json({
     coach: { ...coach, rake_name: rake ? rake.rake_name : "Unassigned", rake_type: rake ? rake.rake_type : "-" },
     axles,
     band_counts: bandCounts,
-    avg_vibration_g: Number(avgVibration.toFixed(1)),
-    avg_temperature_c: Number(avgTemperature.toFixed(1)),
+    avg_vibration_g: avgVibration === null ? null : Number(avgVibration.toFixed(1)),
+    avg_temperature_c: avgTemperature === null ? null : Number(avgTemperature.toFixed(1)),
     total_alerts: alerts.length,
     open_alerts: alerts.filter((a) => !a.acknowledged).length,
     alerts_by_severity: alertsBySeverity,

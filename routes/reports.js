@@ -126,16 +126,16 @@ router.get("/summary", async (req, res) => {
   await db.read();
   const allowed = new Set(accessibleCoachIds(req));
   const myCoaches = db.data.coaches.filter((c) => allowed.has(c.id));
-  const bandCounts = { GREEN: 0, YELLOW: 0, ORANGE: 0, RED: 0 };
+  const bandCounts = { NODATA: 0, GREEN: 0, YELLOW: 0, ORANGE: 0, RED: 0 };
   myCoaches.forEach((c) => {
     const axles = db.data.axles.filter((a) => a.coach_id === c.id);
     const bands = axles.map((a) => {
       const readings = db.data.readings.filter((r) => r.axle_id === a.id);
       const latest = readings.sort((x, y) => new Date(y.ts) - new Date(x.ts))[0];
-      return latest ? latest.band : "GREEN";
+      return latest ? latest.band : "NODATA";
     });
-    const order = ["GREEN", "YELLOW", "ORANGE", "RED"];
-    const worst = bands.reduce((w, b) => (order.indexOf(b) > order.indexOf(w) ? b : w), "GREEN");
+    const order = ["NODATA", "GREEN", "YELLOW", "ORANGE", "RED"];
+    const worst = bands.reduce((w, b) => (order.indexOf(b) > order.indexOf(w) ? b : w), "NODATA");
     bandCounts[worst]++;
   });
   const myCoachIds = myCoaches.map((c) => c.id);
@@ -145,7 +145,7 @@ router.get("/summary", async (req, res) => {
     total_axles: db.data.axles.filter((a) => myCoachIds.includes(a.coach_id)).length,
     open_alerts: db.data.alerts.filter((a) => myCoachIds.includes(a.coach_id) && !a.acknowledged).length,
     acknowledged_alerts: db.data.alerts.filter((a) => myCoachIds.includes(a.coach_id) && a.acknowledged).length,
-    piccu_faults: db.data.piccuSystems.filter((p) => myCoachIds.includes(p.coach_id) && p.status !== "Online").length,
+    piccu_faults: db.data.piccuSystems.filter((p) => myCoachIds.includes(p.coach_id) && p.status === "Fault").length,
     band_counts: bandCounts,
     thresholds: db.data.thresholds,
     daily_report_time: db.data.settings.daily_report_time,

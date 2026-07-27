@@ -25,13 +25,13 @@ router.get("/fleet", async (req, res) => {
           return {
             axle_id: a.id,
             axle_number: a.axle_number,
-            band: latest ? latest.band : "GREEN",
+            band: latest ? latest.band : "NODATA",
             vibration_g: latest ? latest.vibration_g : null,
             temperature_c: latest ? latest.temperature_c : null,
           };
         });
-      const scores = axles.map((a) => SCORE_BY_BAND[a.band] ?? 100);
-      const healthScore = scores.length ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length) : 100;
+      const scores = axles.map((a) => SCORE_BY_BAND[a.band]).filter((s) => s !== undefined);
+      const healthScore = scores.length ? Math.round(scores.reduce((s, v) => s + v, 0) / scores.length) : null;
       return {
         coach_id: c.id,
         coach_number: c.coach_number,
@@ -43,7 +43,12 @@ router.get("/fleet", async (req, res) => {
         health_score: healthScore,
       };
     });
-  res.json(coaches.sort((a, b) => a.health_score - b.health_score));
+  res.json(coaches.sort((a, b) => {
+    if (a.health_score === null && b.health_score === null) return 0;
+    if (a.health_score === null) return 1; // No Data sinks to the bottom of the "worst first" list
+    if (b.health_score === null) return -1;
+    return a.health_score - b.health_score;
+  }));
 });
 
 router.get("/worst-axles", async (req, res) => {

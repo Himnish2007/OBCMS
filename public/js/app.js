@@ -240,6 +240,7 @@ async function loadOverview() {
     document.getElementById("kpi-rakes").textContent = summary.total_rakes;
     document.getElementById("kpi-alerts").textContent = summary.open_alerts;
     document.getElementById("kpi-piccu").textContent = summary.piccu_faults;
+    document.getElementById("band-nodata").textContent = summary.band_counts.NODATA;
     document.getElementById("band-green").textContent = summary.band_counts.GREEN;
     document.getElementById("band-yellow").textContent = summary.band_counts.YELLOW;
     document.getElementById("band-orange").textContent = summary.band_counts.ORANGE;
@@ -305,7 +306,7 @@ async function loadObcms() {
 
     const grid = document.getElementById("obcms-sensor-grid");
     grid.innerHTML = axles.map((a) => {
-      const band = a.latest ? a.latest.band : "GREEN";
+      const band = a.latest ? a.latest.band : "NODATA";
       const vib = a.latest ? a.latest.vibration_g : "-";
       const temp = a.latest ? a.latest.temperature_c : "-";
       return `
@@ -384,7 +385,7 @@ async function loadPiccu() {
     grid.innerHTML = systems.map((s) => `
       <div class="piccu-item">
         <span class="piccu-item-name">${t("piccuSystem." + s.system_name)}</span>
-        <span class="status-pill ${s.status}">${s.status === "Online" ? t("common.online") : s.status === "Fault" ? t("common.fault") : t("common.offline")}</span>
+        <span class="status-pill ${s.status.replace(/\s/g, "")}">${s.status === "Online" ? t("common.online") : s.status === "Fault" ? t("common.fault") : t("common.noDataShort")}</span>
       </div>
     `).join("");
 
@@ -407,7 +408,7 @@ async function loadHealth() {
       <tr>
         <td><b>${c.coach_number}</b><br/><span class="muted">${c.coach_type}</span></td>
         <td>${c.rake_name}</td>
-        <td><span class="health-score-pill" style="background:${c.health_score >= 85 ? "#2e7d32" : c.health_score >= 60 ? "#d9a400" : c.health_score >= 35 ? "#eb5b12" : "#c0392b"}">${c.health_score}</span></td>
+        <td><span class="health-score-pill" style="background:${c.health_score === null ? "#64748a" : c.health_score >= 85 ? "#2e7d32" : c.health_score >= 60 ? "#d9a400" : c.health_score >= 35 ? "#eb5b12" : "#c0392b"}">${c.health_score === null ? t("common.noDataShort") : c.health_score}</span></td>
         <td><div class="axle-heatmap">${c.axles.map((a) => `<div class="axle-cell ${a.band}" title="${t("common.axlePrefix")}${a.axle_number}: ${t("common.band." + a.band)}">${a.axle_number}</div>`).join("")}</div></td>
       </tr>
     `).join("");
@@ -553,8 +554,8 @@ async function loadCoachAnalyticsDetail(coachId) {
 
     container.innerHTML = `
       <div class="kpi-grid" style="margin:1rem 0;">
-        <div class="kpi-card"><div class="kpi-label">${t("analytics.kpi.avgVibration")}</div><div class="kpi-value">${d.avg_vibration_g}g</div></div>
-        <div class="kpi-card"><div class="kpi-label">${t("analytics.kpi.avgTemperature")}</div><div class="kpi-value">${d.avg_temperature_c}°C</div></div>
+        <div class="kpi-card"><div class="kpi-label">${t("analytics.kpi.avgVibration")}</div><div class="kpi-value">${d.avg_vibration_g === null ? t("common.noDataShort") : d.avg_vibration_g + "g"}</div></div>
+        <div class="kpi-card"><div class="kpi-label">${t("analytics.kpi.avgTemperature")}</div><div class="kpi-value">${d.avg_temperature_c === null ? t("common.noDataShort") : d.avg_temperature_c + "°C"}</div></div>
         <div class="kpi-card alert"><div class="kpi-label">${t("analytics.kpi.openAlerts")}</div><div class="kpi-value">${d.open_alerts}</div></div>
         <div class="kpi-card"><div class="kpi-label">${t("analytics.kpi.totalAlerts")}</div><div class="kpi-value">${d.total_alerts}</div></div>
       </div>
@@ -1352,6 +1353,17 @@ document.getElementById("data-source-form").addEventListener("submit", async (e)
   } catch (err) {
     resultEl.style.color = "var(--red)";
     resultEl.textContent = err.message;
+  }
+});
+
+document.getElementById("clear-simulated-data-btn").addEventListener("click", async () => {
+  if (!confirm(t("settings.dataSource.confirmClear"))) return;
+  try {
+    await apiFetch("/settings/clear-simulated-data", { method: "POST" });
+    showToast(t("settings.dataSource.toastCleared"), "success");
+    loadSettings();
+  } catch (err) {
+    showToast(err.message, "error");
   }
 });
 

@@ -3,10 +3,10 @@ const { db } = require("../db/db");
 const { accessibleCoachIds, requireCoachAccess } = require("../services/access");
 
 const router = express.Router();
-const BAND_ORDER = ["GREEN", "YELLOW", "ORANGE", "RED"];
+const BAND_ORDER = ["NODATA", "GREEN", "YELLOW", "ORANGE", "RED"];
 
 function worstOf(bands) {
-  return bands.reduce((w, b) => (BAND_ORDER.indexOf(b) > BAND_ORDER.indexOf(w) ? b : w), "GREEN");
+  return bands.reduce((w, b) => (BAND_ORDER.indexOf(b) > BAND_ORDER.indexOf(w) ? b : w), "NODATA");
 }
 
 function latestReadingFor(axleId) {
@@ -18,9 +18,9 @@ function coachOverallBand(coachId) {
   const axles = db.data.axles.filter((a) => a.coach_id === coachId);
   const bands = axles.map((a) => {
     const latest = latestReadingFor(a.id);
-    return latest ? latest.band : "GREEN";
+    return latest ? latest.band : "NODATA";
   });
-  return worstOf(bands.length ? bands : ["GREEN"]);
+  return worstOf(bands.length ? bands : ["NODATA"]);
 }
 
 router.get("/", async (req, res) => {
@@ -31,7 +31,7 @@ router.get("/", async (req, res) => {
     .map((c) => {
       const rake = db.data.rakes.find((r) => r.id === c.rake_id);
       const openAlerts = db.data.alerts.filter((a) => a.coach_id === c.id && !a.acknowledged).length;
-      const piccuFault = db.data.piccuSystems.filter((p) => p.coach_id === c.id && p.status !== "Online").length;
+      const piccuFault = db.data.piccuSystems.filter((p) => p.coach_id === c.id && p.status === "Fault").length;
       return {
         ...c,
         rake_name: rake ? rake.rake_name : "Unassigned",
@@ -49,7 +49,7 @@ router.get("/summary", async (req, res) => {
   await db.read();
   const allowed = new Set(accessibleCoachIds(req));
   const myCoaches = db.data.coaches.filter((c) => allowed.has(c.id));
-  const bandCounts = { GREEN: 0, YELLOW: 0, ORANGE: 0, RED: 0 };
+  const bandCounts = { NODATA: 0, GREEN: 0, YELLOW: 0, ORANGE: 0, RED: 0 };
   myCoaches.forEach((c) => { bandCounts[coachOverallBand(c.id)]++; });
   const myCoachIds = myCoaches.map((c) => c.id);
   res.json({
@@ -57,7 +57,7 @@ router.get("/summary", async (req, res) => {
     total_rakes: new Set(myCoaches.map((c) => c.rake_id)).size,
     total_axles: db.data.axles.filter((a) => myCoachIds.includes(a.coach_id)).length,
     open_alerts: db.data.alerts.filter((a) => myCoachIds.includes(a.coach_id) && !a.acknowledged).length,
-    piccu_faults: db.data.piccuSystems.filter((p) => myCoachIds.includes(p.coach_id) && p.status !== "Online").length,
+    piccu_faults: db.data.piccuSystems.filter((p) => myCoachIds.includes(p.coach_id) && p.status === "Fault").length,
     band_counts: bandCounts,
   });
 });

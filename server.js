@@ -22,7 +22,7 @@ const ingestRoutes = require("./routes/ingest");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const DEMO_MODE = (process.env.DEMO_MODE || "true") === "true";
+const DEMO_MODE = (process.env.DEMO_MODE || "false") === "true";
 
 app.use(cors());
 app.use(express.json());

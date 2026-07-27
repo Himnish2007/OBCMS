@@ -73,7 +73,7 @@ function buildCoachReportPdf({ title, coachIds, generatedFor, fromTs, toTs }) {
         doc.fillColor("#1c2530").text(`Axle-${a.axle_number}`, colX[0], rowY);
         doc.text(latest ? String(latest.vibration_g) : "-", colX[1], rowY);
         doc.text(latest ? String(latest.temperature_c) : "-", colX[2], rowY);
-        doc.fillColor(bandColor(latest ? latest.band : "GREEN")).text(latest ? latest.band : "GREEN", colX[3], rowY);
+        doc.fillColor(bandColor(latest ? latest.band : "NODATA")).text(latest ? latest.band : "No Data", colX[3], rowY);
         doc.fillColor("#1c2530").text(latest ? String(latest.speed_kmph) : "-", colX[4], rowY);
         doc.moveDown(0.15);
       });
@@ -107,7 +107,7 @@ function buildCoachReportPdf({ title, coachIds, generatedFor, fromTs, toTs }) {
 }
 
 function bandColor(band) {
-  return { GREEN: "#2e7d32", YELLOW: "#b8860b", ORANGE: "#c0530f", RED: "#c0392b" }[band] || "#1c2530";
+  return { NODATA: "#8a97a8", GREEN: "#2e7d32", YELLOW: "#b8860b", ORANGE: "#c0530f", RED: "#c0392b" }[band] || "#1c2530";
 }
 
 module.exports = { buildCoachReportPdf };
