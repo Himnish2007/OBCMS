@@ -138,6 +138,42 @@ body {
 
 /* ---------- Cards / Tables ---------- */
 .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem 1.4rem; margin-bottom: 1.2rem; }
+
+/* Fleet Health Score widget — big composite % ring + subsystem checklist, Fleet Overview */
+.health-score-card { display: flex; gap: 2rem; align-items: center; flex-wrap: wrap; }
+.health-score-left { display: flex; flex-direction: column; align-items: center; min-width: 160px; }
+.health-ring {
+  width: 140px; height: 140px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: conic-gradient(var(--border) 0deg 360deg);
+  position: relative;
+}
+.health-ring::before {
+  content: ""; position: absolute; width: 112px; height: 112px; border-radius: 50%; background: var(--card-bg);
+}
+.health-ring span { position: relative; font-size: 1.9rem; font-weight: 800; color: var(--text); }
+.health-ring.band-GREEN { background: conic-gradient(var(--green) calc(var(--pct, 0) * 3.6deg), var(--border) 0deg); }
+.health-ring.band-YELLOW { background: conic-gradient(var(--yellow) calc(var(--pct, 0) * 3.6deg), var(--border) 0deg); }
+.health-ring.band-ORANGE { background: conic-gradient(var(--orange) calc(var(--pct, 0) * 3.6deg), var(--border) 0deg); }
+.health-ring.band-RED { background: conic-gradient(var(--red) calc(var(--pct, 0) * 3.6deg), var(--border) 0deg); }
+.health-ring.band-NODATA { background: conic-gradient(#94a3b8 0deg 360deg); }
+.health-ring-label { margin-top: 0.7rem; font-weight: 700; font-size: 0.95rem; color: var(--text); }
+.health-ring-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem; }
+.health-score-right { flex: 1; min-width: 280px; }
+.health-checklist { display: flex; flex-direction: column; gap: 0.55rem; }
+.health-check-row { display: flex; align-items: center; gap: 0.7rem; padding: 0.5rem 0.7rem; border-radius: 8px; background: var(--bg); }
+.health-check-icon { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.85rem; font-weight: 800; }
+.health-check-icon.GREEN { background: var(--green); }
+.health-check-icon.YELLOW { background: var(--yellow); }
+.health-check-icon.ORANGE { background: var(--orange); }
+.health-check-icon.RED { background: var(--red); }
+.health-check-icon.NODATA { background: #94a3b8; }
+.health-check-text { display: flex; flex-direction: column; }
+.health-check-label { font-weight: 700; font-size: 0.85rem; color: var(--text); }
+.health-check-detail { font-size: 0.76rem; color: var(--text-muted); }
+@media (max-width: 640px) {
+  .health-score-card { flex-direction: column; }
+}
 .card-title { font-weight: 700; color: var(--navy-dark); margin-bottom: 0.9rem; font-size: 0.98rem; }
 .card-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.9rem; }
 

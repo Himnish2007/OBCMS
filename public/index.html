@@ -96,6 +96,20 @@
         <div class="kpi-card warn"><div class="kpi-label" data-i18n="overview.kpi.piccuFaults">PICCU Faults</div><div class="kpi-value" id="kpi-piccu">-</div></div>
       </div>
 
+      <div class="card health-score-card">
+        <div class="health-score-left">
+          <div id="fleet-health-ring" class="health-ring">
+            <span id="fleet-health-pct">-</span>
+          </div>
+          <div class="health-ring-label" data-i18n="overview.health.label">Fleet Health Score</div>
+          <div class="health-ring-sub" id="fleet-health-coach-count"></div>
+        </div>
+        <div class="health-score-right">
+          <div class="card-title" style="margin-bottom:0.6rem;" data-i18n="overview.health.checklistTitle">Sub-System Status</div>
+          <div id="fleet-health-checklist" class="health-checklist"></div>
+        </div>
+      </div>
+
       <div class="band-strip">
         <div class="band-chip nodata"><span data-i18n="common.band.NODATA">NO DATA</span> <span id="band-nodata">0</span></div>
         <div class="band-chip green"><span data-i18n="common.band.GREEN">GREEN</span> <span id="band-green">0</span></div>

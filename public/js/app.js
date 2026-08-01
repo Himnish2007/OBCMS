@@ -374,6 +374,31 @@ async function loadOverview() {
     COACHES = await apiFetch("/coaches");
     renderOverviewCoachOptions();
     renderFleetTable();
+    loadFleetHealthScore();
+  } catch (err) { console.error(err); }
+}
+
+async function loadFleetHealthScore() {
+  try {
+    const h = await apiFetch("/coaches/health-summary");
+    const ring = document.getElementById("fleet-health-ring");
+    const pctEl = document.getElementById("fleet-health-pct");
+    const band = h.overall_health_pct === null ? "NODATA" : h.overall_band;
+    ring.className = "health-ring band-" + band;
+    ring.style.setProperty("--pct", h.overall_health_pct === null ? 0 : h.overall_health_pct);
+    pctEl.textContent = h.overall_health_pct === null ? t("common.noDataShort") : h.overall_health_pct + "%";
+    document.getElementById("fleet-health-coach-count").textContent =
+      h.coach_count === 1 ? "1 coach" : `${h.coach_count} coaches`;
+
+    document.getElementById("fleet-health-checklist").innerHTML = h.checklist.map((c) => `
+      <div class="health-check-row">
+        <div class="health-check-icon ${c.band}">${c.band === "GREEN" ? "✓" : c.band === "NODATA" ? "–" : "!"}</div>
+        <div class="health-check-text">
+          <span class="health-check-label">${escapeHtml(c.label)}</span>
+          <span class="health-check-detail">${escapeHtml(c.detail)}</span>
+        </div>
+      </div>
+    `).join("");
   } catch (err) { console.error(err); }
 }
 
