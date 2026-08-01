@@ -127,6 +127,77 @@ function promptForOtp(userId) {
   });
 }
 
+// Self-service password reset — Step 1 (request code) then Step 2 (enter code + new
+// password). Works only if Admin > Notifications > SMTP is configured; the backend
+// returns a clear error otherwise, no dead-end silent failure.
+document.getElementById("forgot-password-link").addEventListener("click", () => promptForgotPasswordStep1());
+
+function promptForgotPasswordStep1() {
+  openModal(`
+    <h3>Forgot Password</h3>
+    <p class="muted">Enter your username. If email-based reset is set up, a 6-digit code will be sent to the address on file.</p>
+    <form id="forgot-password-form">
+      <label>Username</label>
+      <input type="text" id="fp-username" required autocomplete="username" />
+      <div class="modal-error" id="fp-error"></div>
+      <button type="submit" class="btn-primary">Send Reset Code</button>
+    </form>
+  `);
+  document.getElementById("forgot-password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const username = document.getElementById("fp-username").value.trim();
+    const errEl = document.getElementById("fp-error");
+    try {
+      const res = await fetch(API + "/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || t("common.requestFailed"));
+      closeModal();
+      promptForgotPasswordStep2(username);
+    } catch (err) {
+      errEl.textContent = err.message;
+    }
+  });
+}
+
+function promptForgotPasswordStep2(username) {
+  openModal(`
+    <h3>Enter Reset Code</h3>
+    <p class="muted">Check the email for "${escapeHtml(username)}" for a 6-digit code (valid 15 minutes), then choose a new password.</p>
+    <form id="reset-code-form">
+      <label>Reset Code</label>
+      <input type="text" id="rc-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required />
+      <label>New Password</label>
+      <input type="password" id="rc-new-password" minlength="8" required />
+      <div class="modal-error" id="rc-error"></div>
+      <button type="submit" class="btn-primary">Reset Password</button>
+    </form>
+    <button type="button" class="link-btn" id="rc-back-btn" style="margin-top:0.6rem;">Didn't get a code? Try again</button>
+  `);
+  document.getElementById("rc-back-btn").addEventListener("click", () => promptForgotPasswordStep1());
+  document.getElementById("reset-code-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const code = document.getElementById("rc-code").value.trim();
+    const new_password = document.getElementById("rc-new-password").value;
+    const errEl = document.getElementById("rc-error");
+    try {
+      const res = await fetch(API + "/auth/reset-password-with-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, code, new_password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || t("common.requestFailed"));
+      closeModal();
+      showToast(data.message || "Password reset. Please log in.", "success");
+    } catch (err) {
+      errEl.textContent = err.message;
+    }
+  });
+}
 // DSC (Digital Signature Certificate) step — only reached if Admin > Security > "Require DSC
 // at login" is on AND this account has a certificate on file. The user signs the challenge with
 // their own DSC token's signer software (outside this app, same as e-Tendering/GST portals) and
@@ -825,23 +896,37 @@ async function loadCoachAnalyticsDetail(coachId) {
 }
 
 // ================= ALERTS =================
-async function loadAlerts() {
+let alertsLoadedRows = [];
+let alertsOffset = 0;
+const ALERTS_PAGE_SIZE = 100;
+
+async function loadAlerts(append = false) {
   try {
-    const alerts = await apiFetch(`/alerts?status=${alertsFilter}`);
+    if (!append) { alertsOffset = 0; alertsLoadedRows = []; }
+    const result = await apiFetch(`/alerts?status=${alertsFilter}&limit=${ALERTS_PAGE_SIZE}&offset=${alertsOffset}`);
+    alertsLoadedRows = append ? alertsLoadedRows.concat(result.alerts) : result.alerts;
+    alertsOffset += result.alerts.length;
+
     const tbody = document.getElementById("alerts-table-body");
-    tbody.innerHTML = alerts.map((a) => `
+    tbody.innerHTML = alertsLoadedRows.map((a) => `
       <tr>
         <td>${new Date(a.created_at).toLocaleString()}</td>
-        <td>${a.coach_number}</td>
-        <td>${a.axle_label}</td>
-        <td>${a.severity === "Critical" ? t("common.critical") : a.severity === "High" ? t("common.high") : a.severity}</td>
-        <td>${a.message}</td>
+        <td>${escapeHtml(a.coach_number)}</td>
+        <td>${escapeHtml(a.axle_label)}</td>
+        <td>${a.severity === "Critical" ? t("common.critical") : a.severity === "High" ? t("common.high") : escapeHtml(a.severity)}</td>
+        <td>${escapeHtml(a.message)}</td>
         <td>${a.acknowledged ? `<span class="status-pill Online">${t("common.acknowledged")}</span>` : `<span class="status-pill Fault">${t("common.open")}</span>`}</td>
         <td>${a.acknowledged ? "" : `<button class="btn-small" onclick="ackAlert(${a.id})">${t("alerts.action.acknowledge")}</button>`}</td>
       </tr>
     `).join("") || `<tr><td colspan="7" style="color:#5b6b7f;">${t("alerts.noAlerts")}</td></tr>`;
+
+    document.getElementById("alerts-count-summary").textContent =
+      result.total > 0 ? `Showing ${alertsLoadedRows.length} of ${result.total}` : "";
+    document.getElementById("alerts-load-more-btn").classList.toggle("hidden", alertsOffset >= result.total);
   } catch (err) { console.error(err); }
 }
+
+document.getElementById("alerts-load-more-btn").addEventListener("click", () => loadAlerts(true));
 
 async function ackAlert(id) {
   try {

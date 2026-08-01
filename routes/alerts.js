@@ -23,7 +23,16 @@ router.get("/", async (req, res) => {
   if (status === "open") alerts = alerts.filter((a) => !a.acknowledged);
   if (status === "acknowledged") alerts = alerts.filter((a) => a.acknowledged);
   alerts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  res.json(alerts);
+
+  // Paginated on purpose: the alert-generating modules (wheel-defect, self-diagnosis) mean
+  // this list only grows over months of operation, and the frontend polls it every 8s —
+  // an unbounded response here gets slower for everyone as the fleet accumulates history.
+  const total = alerts.length;
+  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+  const offset = Math.max(Number(req.query.offset) || 0, 0);
+  const page = alerts.slice(offset, offset + limit);
+
+  res.json({ alerts: page, total, limit, offset });
 });
 
 router.post("/:id/ack", async (req, res) => {

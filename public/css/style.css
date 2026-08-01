@@ -65,6 +65,8 @@ body {
 }
 .login-card button:hover { background: #d24f0b; }
 .error-text { color: var(--red); font-size: 0.82rem; min-height: 1.1rem; margin-top: 0.5rem; }
+.link-btn { background: none; border: none; color: var(--navy); font-size: 0.82rem; font-weight: 600; cursor: pointer; padding: 0.3rem 0; text-decoration: underline; }
+.link-btn:hover { color: var(--orange); }
 .demo-hint { font-size: 0.72rem; color: var(--text-muted); margin-top: 1rem; }
 
 /* ---------- App Shell ---------- */

@@ -96,6 +96,32 @@ app.use((req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+// Catch-all Express error handler. Express 5's router already forwards rejected promises
+// from async route handlers here automatically, so this is the backstop for every route
+// in the app — without it, an uncaught route error would hang the request (or leak a raw
+// stack trace via Express's default handler) instead of returning a clean 500. Must be
+// the LAST app.use() — Express identifies error middleware by its 4-argument signature.
+app.use((err, req, res, next) => {
+  console.error(`[unhandled route error] ${req.method} ${req.originalUrl}:`, err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: "Something went wrong on the server. Please try again." });
+});
+
+// Last-resort process-level safety net for anything outside the Express request cycle
+// (the scheduler's setInterval tick, a stray unhandled promise, etc). We log loudly and
+// keep the process alive for a rejected promise — one bad background tick should not take
+// the whole dashboard down for every user. A genuinely corrupted process state
+// (uncaughtException) is different: Node's own guidance is not to keep running after one,
+// so we log it and exit — Railway (or any process manager) restarts the container
+// automatically, which is a faster recovery than serving from a possibly-broken process.
+process.on("unhandledRejection", (reason) => {
+  console.error("⚠️  Unhandled promise rejection (process kept alive):", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("🛑 Uncaught exception — exiting so the process manager can restart cleanly:", err);
+  process.exit(1);
+});
+
 init().then(() => {
   // Live-hardware-only: data arrives via RUT devices POSTing to /api/ingest/push. There
   // is no simulator and no demo mode — until real hardware is connected and registered

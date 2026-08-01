@@ -174,7 +174,8 @@ router.get("/:id/alerts", requireCoachAccess, async (req, res) => {
   const coachId = Number(req.params.id);
   const alerts = db.data.alerts
     .filter((a) => a.coach_id === coachId)
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, 300); // single-coach view — capped defensively, same reasoning as /api/alerts
   res.json(alerts);
 });
 

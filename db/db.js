@@ -211,6 +211,8 @@ async function init() {
     if (u.locked_until === undefined) u.locked_until = null;
     if (u.otp_hash === undefined) u.otp_hash = null;
     if (u.otp_expires_at === undefined) u.otp_expires_at = null;
+    if (u.reset_code_hash === undefined) u.reset_code_hash = null; // self-service "Forgot password?" (email-delivered)
+    if (u.reset_code_expires_at === undefined) u.reset_code_expires_at = null;
     if (u.dsc_cert_pem === undefined) u.dsc_cert_pem = null; // uploaded by Admin, see services/dsc.js
     if (u.dsc_challenge === undefined) u.dsc_challenge = null;
     if (u.dsc_challenge_expires_at === undefined) u.dsc_challenge_expires_at = null;

@@ -24,6 +24,7 @@
       <button type="submit" data-i18n="login.signin">Sign In</button>
       <p id="login-error" class="error-text"></p>
     </form>
+    <button type="button" id="forgot-password-link" class="link-btn">Forgot password?</button>
     <div class="lang-switch" style="margin-top:0.8rem;">
       <button type="button" class="lang-btn active" data-lang="en">EN</button>
       <button type="button" class="lang-btn" data-lang="hi">हिं</button>
@@ -312,6 +313,10 @@
           </thead>
           <tbody id="alerts-table-body"></tbody>
         </table>
+        <div class="report-actions" style="justify-content:space-between;align-items:center;margin-top:0.6rem;">
+          <span id="alerts-count-summary" class="muted" style="font-size:0.82rem;"></span>
+          <button class="btn-secondary hidden" id="alerts-load-more-btn">Load more</button>
+        </div>
       </div>
     </section>
 

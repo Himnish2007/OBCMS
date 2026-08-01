@@ -154,6 +154,87 @@ router.post("/dsc-verify", async (req, res) => {
   });
 });
 
+const RESET_CODE_VALID_MINUTES = 15;
+
+function generateResetCode() {
+  return String(crypto.randomInt(100000, 999999)); // 6-digit, e.g. "483920"
+}
+
+// Step 1 of self-service "Forgot password?" — email a 6-digit reset code, valid for 15
+// minutes. Deliberately vague about whether the username exists (avoids leaking which
+// accounts are real), except when SMTP itself isn't configured, since that's a system
+// state, not per-user information, and the person needs to know to go a different route
+// (Admin reset, or the break-glass CLI script) rather than wait for an email that will
+// never arrive.
+router.post("/forgot-password", async (req, res) => {
+  const { username } = req.body || {};
+  if (!username) return res.status(400).json({ error: "Username is required" });
+  await db.read();
+
+  if (!db.data.settings.smtp.enabled) {
+    return res.status(400).json({
+      error: "Email-based password reset isn't set up on this dashboard. Ask an Administrator to reset your password from Admin > Users.",
+    });
+  }
+
+  const user = db.data.users.find((u) => u.username === username);
+  const genericResponse = { message: "If that account exists, a reset code has been emailed to its registered address." };
+
+  if (!user || !user.email) {
+    // No user, or a user with no email on file — nothing to send, but don't reveal which.
+    return res.json(genericResponse);
+  }
+
+  const code = generateResetCode();
+  user.reset_code_hash = hashOtp(code);
+  user.reset_code_expires_at = new Date(Date.now() + RESET_CODE_VALID_MINUTES * 60 * 1000).toISOString();
+  await save();
+
+  sendEmail({
+    toUserId: user.id,
+    toAddress: user.email,
+    subject: "Himnish OBCMS & PICCU — Password Reset Code",
+    text: `Your password reset code is ${code}. It is valid for ${RESET_CODE_VALID_MINUTES} minutes. If you did not request this, you can safely ignore this email — your password will not change unless this code is used.`,
+  }).catch((err) => console.error("Password reset email failed:", err.message));
+
+  res.json(genericResponse);
+});
+
+// Step 2 — the code from that email, plus a new password, sets it directly. No current
+// password needed (that's the whole point of "forgot"), but the code + 15-minute expiry
+// plus the account-level lockout in /login are what stand in for that check.
+router.post("/reset-password-with-code", async (req, res) => {
+  const { username, code, new_password } = req.body || {};
+  if (!username || !code || !new_password) {
+    return res.status(400).json({ error: "username, code and new_password are all required" });
+  }
+  await db.read();
+  const user = db.data.users.find((u) => u.username === username);
+  const genericError = () => res.status(400).json({ error: "Invalid or expired reset code" });
+
+  if (!user || !user.reset_code_hash || !user.reset_code_expires_at) return genericError();
+  if (new Date(user.reset_code_expires_at) < new Date()) {
+    user.reset_code_hash = null;
+    user.reset_code_expires_at = null;
+    await save();
+    return genericError();
+  }
+  if (hashOtp(code) !== user.reset_code_hash) return genericError();
+
+  const policyError = validatePassword(new_password);
+  if (policyError) return res.status(400).json({ error: policyError });
+
+  user.passwordHash = bcrypt.hashSync(new_password, 10);
+  user.must_change_password = false;
+  user.failed_login_attempts = 0;
+  user.locked_until = null;
+  user.reset_code_hash = null;
+  user.reset_code_expires_at = null;
+  await save();
+  addAudit(user, "password_reset_via_email_code", { self_service: true });
+  res.json({ success: true, message: "Password reset. You can log in with your new password now." });
+});
+
 // Any authenticated user can change their own password. Required before doing anything
 // else if must_change_password is set (default seeded demo accounts, or after an Admin
 // reset). Also clears must_change_password once a real password is chosen.
