@@ -156,6 +156,7 @@ function generateDeviceKey() {
 }
 
 async function init() {
+  const dbFileExistedBeforeRead = fs.existsSync(file);
   await db.read();
   db.data ||= structuredClone(defaultData);
   db.data.thresholds ||= structuredClone(defaultData.thresholds);
@@ -277,6 +278,22 @@ async function init() {
 
     db.data.meta.seeded = true;
     await db.write();
+
+    if (!dbFileExistedBeforeRead) {
+      console.warn(
+        "\n" +
+        "⚠️  ⚠️  ⚠️  NO EXISTING DATABASE FOUND — FRESH DEFAULT DATA WAS JUST SEEDED  ⚠️  ⚠️  ⚠️\n" +
+        `   DATA_DIR = ${DATA_DIR}\n` +
+        "   This means every user account (including any password you already changed),\n" +
+        "   coach assignment, RUT device key, and notification setting was just RESET to\n" +
+        "   factory defaults (admin / Himnish@123, etc). This is expected on a brand-new\n" +
+        "   deploy — but if you have deployed before and expected your data to still be\n" +
+        "   here, it means DATA_DIR is NOT pointing at a persistent volume, and it will\n" +
+        "   keep resetting on every restart/redeploy until you fix that.\n" +
+        "   Railway.app fix: Settings > Volumes > New Volume, mount path = DATA_DIR above,\n" +
+        "   then set the DATA_DIR env var to that same path and redeploy.\n"
+      );
+    }
   }
   return db;
 }

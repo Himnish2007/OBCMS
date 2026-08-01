@@ -15,7 +15,6 @@ const I18N = {
     "login.username": "Username",
     "login.password": "Password",
     "login.signin": "Sign In",
-    "login.hint": "Sample logins — admin / supervisor / viewer (password: Himnish@123)",
 
     "sidebar.brandSub": "Railway IoT Platform",
     "sidebar.logout": "Logout",
@@ -438,7 +437,6 @@ const I18N = {
     "login.username": "यूज़रनेम",
     "login.password": "पासवर्ड",
     "login.signin": "साइन इन करें",
-    "login.hint": "नमूना लॉगिन — admin / supervisor / viewer (पासवर्ड: Himnish@123)",
 
     "sidebar.brandSub": "रेलवे IoT प्लेटफ़ॉर्म",
     "sidebar.logout": "लॉगआउट",
